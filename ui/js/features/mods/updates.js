@@ -1,9 +1,10 @@
 // Mod update tracker (notify only) and the update actions.
 import { invoke } from "../../core/tauri.js";
 import { S } from "../../core/state.js";
-import { toast } from "../../core/feedback.js";
+import { toast, call } from "../../core/feedback.js";
 import { render } from "../../core/render.js";
 import { runAct } from "../../core/registry.js";
+import { refresh } from "./data.js";
 
 export async function checkModUpdates(manual) {
   if (!S.set.game_root) return;
@@ -19,6 +20,20 @@ export async function checkModUpdates(manual) {
 }
 
 export const updateActs = {
+  // Skip the update that is available now. A newer one notifies again. Applies to all files of the same GameBanana page.
+  modskip: async (d) => {
+    const m = S.mods.find((x) => x.yoshirian_id === d.id), remote = S.updates[d.id];
+    if (!m || !remote) return;
+    await call("skip_mod_update", { id: d.id, remote });
+    for (const x of S.mods) if (x.gb_id === m.gb_id && (x.gb_model || "Mod") === (m.gb_model || "Mod")) delete S.updates[x.yoshirian_id];
+    toast("Update skipped — you will be told when a newer one is released");
+    await refresh();
+  },
+  modunskip: async (d) => {
+    await call("skip_mod_update", { id: d.id, remote: 0 });
+    await refresh();
+    await checkModUpdates(false);
+  },
   chkupd: () => checkModUpdates(true),
   modupd: async (d) => {
     try { await invoke("update_mod", { id: d.id }); toast("Update added to the download queue"); render(); }

@@ -32,6 +32,8 @@ pub struct GbUpdate {
     pub changes: Vec<GbChange>,
     pub text: String, // optional free text (html)
     pub files: Vec<String>,
+    #[serde(skip)]
+    pub keys: Vec<String>, // field names GameBanana sent (for the log when the change log looks empty)
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -158,16 +160,65 @@ fn parse(m: &Value) -> GbMod {
     }
 }
 
+/// First string value of `o` whose key (lower case) contains one of `needles`, trying the needles in order.
+fn pick_str(o: &serde_json::Map<String, Value>, needles: &[&str], skip: Option<&str>) -> String {
+    for n in needles {
+        for (k, v) in o {
+            if Some(k.as_str()) != skip && k.to_lowercase().contains(n) {
+                if let Some(s) = v.as_str().map(str::trim).filter(|s| !s.is_empty()) {
+                    return s.to_string();
+                }
+            }
+        }
+    }
+    String::new()
+}
+
+/// One change log line. GameBanana calls the fields `_sCat` / `_sText`, but this also accepts other
+/// spellings (`category`, `text`, `description` ...) and plain strings.
+fn parse_change(c: &Value) -> Option<GbChange> {
+    if let Some(s) = c.as_str() {
+        return Some(GbChange { cat: String::new(), text: s.trim().to_string() }).filter(|c| !c.text.is_empty());
+    }
+    let o = c.as_object()?;
+    let cat_key = o.iter().find(|(k, v)| v.is_string() && (k.to_lowercase().contains("cat") || k.to_lowercase().contains("type"))).map(|(k, _)| k.clone());
+    let cat = cat_key.as_deref().and_then(|k| o.get(k)).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    let mut text = pick_str(o, &["text", "desc", "change", "note", "title"], cat_key.as_deref());
+    if text.is_empty() {
+        text = o.iter().filter(|(k, _)| Some(k.as_str()) != cat_key.as_deref()).find_map(|(_, v)| v.as_str().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())).unwrap_or_default();
+    }
+    Some(GbChange { cat, text }).filter(|c| !c.text.is_empty())
+}
+
+fn parse_changes(u: &Value) -> Vec<GbChange> {
+    let Some(o) = u.as_object() else { return vec![] };
+    for (k, v) in o {
+        if k.to_lowercase().contains("change") {
+            if let Some(a) = v.as_array() {
+                let list: Vec<GbChange> = a.iter().filter_map(parse_change).collect();
+                if !list.is_empty() {
+                    return list;
+                }
+            }
+        }
+    }
+    vec![]
+}
+
 fn parse_update(u: &Value) -> GbUpdate {
-    let changes = u["_aChangeLog"]
-        .as_array()
-        .map(|a| a.iter().map(|c| GbChange { cat: st(c, "_sCat"), text: st(c, "_sText") }).filter(|c| !c.text.trim().is_empty()).collect())
-        .unwrap_or_default();
     let files = u["_aFiles"]
         .as_array()
         .map(|a| a.iter().filter_map(|f| f.as_str().map(String::from).or_else(|| Some(st(f, "_sFile")).filter(|s| !s.is_empty()))).collect())
         .unwrap_or_default();
-    GbUpdate { name: st(u, "_sName"), version: st(u, "_sVersion"), date: ii(u, "_tsDateAdded"), changes, text: st(u, "_sText"), files }
+    GbUpdate {
+        name: st(u, "_sName"),
+        version: st(u, "_sVersion"),
+        date: ii(u, "_tsDateAdded"),
+        changes: parse_changes(u),
+        text: st(u, "_sText"),
+        files,
+        keys: u.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default(),
+    }
 }
 
 fn parse_updates(list: &Value) -> Vec<GbUpdate> {
@@ -371,4 +422,40 @@ pub async fn lookup(input: &str) -> R<Lookup> {
         return Err(format!("Nothing found for \"{t}\""));
     }
     Ok(Lookup::List { items })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn changes(v: Value) -> Vec<(String, String)> {
+        parse_update(&v).changes.into_iter().map(|c| (c.cat, c.text)).collect()
+    }
+
+    #[test]
+    fn change_log_in_the_documented_shape() {
+        let c = changes(json!({"_sName": "u", "_aChangeLog": [{"_sText": "All heroes cleaned up", "_sCat": "Addition"}, {"_sText": "Dust removed", "_sCat": "Improvement"}]}));
+        assert_eq!(c, vec![("Addition".into(), "All heroes cleaned up".into()), ("Improvement".into(), "Dust removed".into())]);
+    }
+
+    #[test]
+    fn change_log_with_other_spellings() {
+        assert_eq!(changes(json!({"_aChangelog": [{"text": "B", "category": "Bugfix"}]})), vec![("Bugfix".into(), "B".into())]);
+        assert_eq!(changes(json!({"_aChanges": [{"_sCategory": "Overhaul", "_sDescription": "C"}]})), vec![("Overhaul".into(), "C".into())]);
+        assert_eq!(changes(json!({"_aChangeLog": ["plain line", ""]})), vec![("".into(), "plain line".into())]);
+    }
+
+    #[test]
+    fn no_change_log_is_fine() {
+        assert!(changes(json!({"_sName": "x", "_sText": "hello"})).is_empty());
+        assert!(changes(json!({"_aChangeLog": null})).is_empty());
+    }
+
+    #[test]
+    fn update_fields_are_read() {
+        let u = parse_update(&json!({"_sName": "Abilities Cleanup", "_sVersion": "3.0", "_tsDateAdded": 1700, "_sText": "<p>t</p>", "_aFiles": [{"_sFile": "a.zip"}, "b.zip"]}));
+        assert_eq!((u.name.as_str(), u.version.as_str(), u.date, u.files.len()), ("Abilities Cleanup", "3.0", 1700, 2));
+        assert!(u.keys.contains(&"_sVersion".to_string()));
+    }
 }

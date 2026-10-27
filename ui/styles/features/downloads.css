@@ -1,21 +1,34 @@
 /* Downloads tab: file notes and the update log of a GameBanana page. */
 .file-note{color:var(--text);font-size:12.5px;opacity:.85;margin:1px 0 2px;white-space:normal;overflow-wrap:anywhere}
-.upd{border-bottom:1px solid var(--border)}
+.fold-head,.upd-head{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.fold-head h3{margin:0}
+.fold-head::before,.upd-head::before{content:"+";width:16px;text-align:center;color:var(--accent);font-weight:700;flex:none}
+.fold.open .fold-head::before,.upd.open .upd-head::before{content:"\2212"}
+.fold.open .fold-head{margin-bottom:10px}
+.upd{border-bottom:1px solid var(--border);padding:10px 0}
 .upd:last-child{border-bottom:0}
-.upd summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 2px;cursor:pointer;list-style:none}
-.upd summary::-webkit-details-marker{display:none}
-.upd summary::before{content:"+";width:16px;text-align:center;color:var(--accent);font-weight:700}
-.upd[open] summary::before{content:"\2212"}
+.upd-head{flex-wrap:wrap}
 .upd-name{font-weight:var(--fw-head);color:var(--accent)}
 .upd-ver{font-size:11px;color:var(--danger);font-family:var(--mono)}
 .upd-date{color:var(--sub);font-size:12px}
 .upd-sum{flex-basis:100%;padding-left:26px;display:flex;gap:6px;flex-wrap:wrap}
-.upd[open] .upd-sum{display:none}
-.upd-body{padding:0 0 12px 26px}
+.upd-body{padding:8px 0 2px 26px}
+.upd-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;border-color:var(--accent)}
 .chg{display:flex;gap:10px;align-items:baseline;margin:5px 0}
-.upd-files ul{margin:4px 0 0;padding-left:1.2em;font-family:var(--mono);font-size:12.5px;color:var(--accent)}
+.upd-files{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.upd-files code{font-family:var(--mono);font-size:12px;color:var(--accent);background:#0003;border-radius:5px;padding:1px 6px}
 .cat{display:inline-block;font-size:11.5px;border-radius:5px;padding:1px 8px;background:#ffffff14;color:var(--sub);white-space:nowrap}
 .cat b{font-weight:600;opacity:.8;margin-left:2px}
 .cat.add{color:#6cb6ff;background:#6cb6ff22}.cat.imp{color:#ff8fb1;background:#ff8fb122}
 .cat.bug{color:#ff6b6b;background:#ff6b6b22}.cat.ovh{color:#f0b429;background:#f0b42922}
 .cat.adj{color:var(--ok);background:#8bd17c22}.cat.rem{color:#c792ea;background:#c792ea22}
+/* Download queue rows */
+.dl-pct{width:48px;text-align:right;font-variant-numeric:tabular-nums;color:var(--sub);flex:none}
+.dl-actions{display:flex;gap:6px;flex:none;min-width:34px;justify-content:flex-end}
+.dl .bar i{transition:width .25s ease}
+.dl.paused .bar i{opacity:.45}
+.dl.error .bar i{background:var(--danger)}
+.dl.cancelled .bar i{width:0!important}
+.dl.cancelled small,.dl.error small{color:var(--sub)}
+.bar.ind i{width:35%!important;animation:dlind 1.1s ease-in-out infinite alternate}
+@keyframes dlind{from{margin-left:0}to{margin-left:65%}}

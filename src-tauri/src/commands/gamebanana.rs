@@ -4,6 +4,7 @@ use crate::domain::{
     gamebanana as gb,
     util::{b64, e, open_url, R},
 };
+use crate::state::log;
 use tauri::AppHandle;
 
 #[tauri::command]
@@ -17,8 +18,15 @@ pub async fn gb_browse(page: u32) -> R<Vec<gb::GbMod>> {
 }
 
 #[tauri::command]
-pub async fn gb_mod(id: u64, model: String) -> R<gb::GbMod> {
-    gb::fetch_detail(&model, id).await
+pub async fn gb_mod(app: AppHandle, id: u64, model: String) -> R<gb::GbMod> {
+    let m = gb::fetch_detail(&model, id).await?;
+    // if the page has updates but none lists changes, write the field names to the log (Settings -> Logs)
+    if let Some(u) = m.updates.first() {
+        if u.changes.is_empty() {
+            log(&app, "INFO", format!("GameBanana update fields of \"{}\": {}", m.name, u.keys.join(", ")));
+        }
+    }
+    Ok(m)
 }
 
 #[tauri::command]

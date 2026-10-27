@@ -2,13 +2,13 @@
 use super::downloads::{meta_from, start_download};
 use crate::domain::{
     gamebanana as gb,
-    meta::{copy_asset, load, norm_model, save},
+    meta::{copy_asset, load, norm_model, save, update_pending},
     util::{e, R},
 };
 use crate::state::{log, root, AppState};
 use super::downloads::fetch_thumb;
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 
 #[derive(Serialize)]
 pub struct ModUpdate {
@@ -79,7 +79,7 @@ pub async fn check_mod_updates(app: AppHandle) -> R<Vec<ModUpdate>> {
         if m.gb_updated == 0 {
             m.gb_updated = rm.updated; // first check: remember the current state as the baseline
             changed = true;
-        } else if rm.updated > m.gb_updated {
+        } else if update_pending(m.gb_updated, m.gb_skipped, rm.updated) {
             out.push(ModUpdate { id: m.yoshirian_id.clone(), name: m.name.clone(), remote: rm.updated });
         }
     }
@@ -88,6 +88,22 @@ pub async fn check_mod_updates(app: AppHandle) -> R<Vec<ModUpdate>> {
     }
     log(&app, "INFO", format!("Mod update check: {} update(s)", out.len()));
     Ok(out)
+}
+
+/// "Skip this update": stops the notification for `remote` (the update timestamp the UI was told about).
+/// A newer update notifies again. `remote = 0` undoes the skip. Applies to every mod of the same GameBanana page.
+#[tauri::command]
+pub fn skip_mod_update(s: State<AppState>, id: String, remote: i64) -> R<()> {
+    let r = root(&s)?;
+    let mut meta = load(&r)?;
+    let key = {
+        let m = meta.mods.iter().find(|m| m.yoshirian_id == id).ok_or("Mod not found")?;
+        (m.gb_id, norm_model(&m.gb_model))
+    };
+    for m in meta.mods.iter_mut().filter(|m| (m.gb_id, norm_model(&m.gb_model)) == key) {
+        m.gb_skipped = remote;
+    }
+    save(&r, &meta)
 }
 
 /// Re-downloads a GameBanana mod and replaces the installed file(s); name, order, enabled state stay.

@@ -22,5 +22,5 @@ export const ui = (() => {
 })();
 export const saveUi = () => localStorage.setItem("yoshi.ui4", JSON.stringify(ui));
 
-/** Number of downloads that are queued / running / installing (shown on the sidebar and titlebar). */
-export const activeDls = () => Object.values(S.dls).filter((d) => ["queued", "downloading", "installing"].includes(d.state)).length;
+/** Number of downloads that are queued / running / paused / installing (shown on the sidebar and titlebar). */
+export const activeDls = () => Object.values(S.dls).filter((d) => ["queued", "downloading", "paused", "installing"].includes(d.state)).length;

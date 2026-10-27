@@ -26,6 +26,8 @@ pub struct Mod {
     #[serde(default)]
     pub gb_updated: i64, // GameBanana "updated" timestamp seen at install time (0 = unknown)
     #[serde(default)]
+    pub gb_skipped: i64, // remote "updated" timestamp the user chose to skip; a newer update notifies again
+    #[serde(default)]
     pub gb_model: String, // "Mod" or "Sound" ("" = Mod)
     #[serde(default)]
     pub gb_part: u32, // index of this vpk inside the downloaded archive
@@ -39,6 +41,12 @@ pub struct Mod {
     pub has_ys: bool, // the vpk contains a .yoshirian file
     #[serde(default)]
     pub edited: bool, // the user changed name/description/image by hand
+}
+
+/// Should the user be told about an update? `installed` = timestamp seen at install (0 = unknown, no baseline yet),
+/// `skipped` = timestamp of the update they chose to skip, `remote` = timestamp on GameBanana now.
+pub fn update_pending(installed: i64, skipped: i64, remote: i64) -> bool {
+    installed != 0 && remote > installed && remote > skipped
 }
 
 pub fn norm_model(s: &str) -> String {
@@ -218,3 +226,17 @@ pub fn apply_profile(meta: &mut Meta, name: &str) -> R<()> {
     Ok(())
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::update_pending;
+
+    #[test]
+    fn updates_can_be_skipped_but_newer_ones_notify_again() {
+        assert!(update_pending(100, 0, 200), "plain update");
+        assert!(!update_pending(100, 200, 200), "skipped");
+        assert!(update_pending(100, 200, 300), "a newer update after the skip");
+        assert!(!update_pending(100, 0, 100), "up to date");
+        assert!(!update_pending(0, 0, 500), "no baseline yet");
+    }
+}

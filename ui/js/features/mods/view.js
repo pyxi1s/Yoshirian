@@ -23,7 +23,7 @@ export function modsView() {
   const play = (m) => (m.snd > 0 ? ib("playvpk", "play", "Preview the sound", `data-id="${m.yoshirian_id}"`, "sm") : m.gb_audio ? ib("playsnd", "play", "Preview the sound", `data-url="${esc(m.gb_audio)}"`, "sm") : "");
   const grip = (c = "") => (canDrag ? `<span class="grip ${c}" title="Drag to reorder">${ic("grip")}</span>` : "");
   const tags = (m) => `<span class="tag ${m.is_enable ? "on" : ""}">${tagOf[m.yoshirian_id]}</span>${isSoundMod(m) ? '<span class="tag">Sound</span>' : ""}${m.author ? `<span class="tag">${esc(m.author)}</span>` : ""}`;
-  const upd = (m) => (S.updates[m.yoshirian_id] ? ib("modupd", "downloads", "Update available — click to update", `data-id="${m.yoshirian_id}"`, "sm primary") : "");
+  const upd = (m) => (S.updates[m.yoshirian_id] ? ib("modupd", "downloads", "Update available — click to update", `data-id="${m.yoshirian_id}"`, "sm primary") + ib("modskip", "skip", "Skip this update (you will still be told about newer ones)", `data-id="${m.yoshirian_id}"`, "sm ghost") : "");
   const sw = (m) => `<label class="sw"><input type="checkbox" ${m.is_enable ? "checked" : ""} data-ch="toggle" data-id="${m.yoshirian_id}"><i></i></label>`;
   const warn = (m) => (w[m.yoshirian_id] ? `<span class="warn" title="${esc(w[m.yoshirian_id])}">⚠</span>` : "");
   const acts = (m) => upd(m) + ib("edit", "edit", "Edit", `data-id="${m.yoshirian_id}"`, "sm ghost") + ib("del", "trash", "Delete", `data-id="${m.yoshirian_id}"`, "sm del");

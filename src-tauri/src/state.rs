@@ -1,10 +1,11 @@
 //! Application state shared by all commands: user settings, download queue, logs.
 use crate::domain::{
+    download::Ctl,
     paths::valid_root,
     util::{e, R},
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, fs, io::Write, path::PathBuf, sync::{Arc, Mutex}};
 use tauri::{AppHandle, Manager, State};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -42,6 +43,7 @@ impl Default for Settings {
 pub struct AppState {
     pub settings: Mutex<Settings>,
     pub dl: tokio::sync::Semaphore,   // download queue: one at a time
+    pub ctls: Mutex<HashMap<String, Arc<Ctl>>>, // pause / resume / cancel handles of unfinished downloads
     pub pending: Mutex<Vec<String>>, // deep links waiting for the UI
     pub logs: Mutex<Vec<String>>,
 }
@@ -51,6 +53,7 @@ impl AppState {
         AppState {
             settings: Mutex::new(Settings::default()),
             dl: tokio::sync::Semaphore::new(1),
+            ctls: Mutex::new(HashMap::new()),
             pending: Mutex::new(vec![]),
             logs: Mutex::new(vec![]),
         }

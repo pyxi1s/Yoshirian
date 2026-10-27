@@ -86,9 +86,9 @@ fn main() {
             // GameBanana & downloads
             gamebanana::gb_lookup, gamebanana::gb_browse, gamebanana::gb_mod, gamebanana::gb_install,
             gamebanana::fetch_audio, gamebanana::open_link,
-            downloads::download, downloads::take_links, downloads::link_kind, downloads::process_link,
+            downloads::download, downloads::dl_pause, downloads::dl_resume, downloads::dl_cancel, downloads::take_links, downloads::link_kind, downloads::process_link,
             // updates
-            updates::check_mod_updates, updates::update_mod, updates::check_update,
+            updates::check_mod_updates, updates::skip_mod_update, updates::update_mod, updates::check_update,
             // cursors
             cursor::cursor_info, cursor::cursor_inspect, cursor::cursor_add, cursor::cursor_rename,
             cursor::cursor_delete, cursor::cursor_activate, cursor::cursor_profile, cursor::cursor_restore_all,

@@ -1,14 +1,14 @@
 //! Download queue (download -> extract -> install as disabled) and `yoshirian://` deep links.
 use crate::domain::{
-    archive, cursor,
+    cursor,
+    download::{fetch_step, finalize, interruptible, Ctl, Partial, Step},
     gamebanana as gb,
     install::{inspect, install},
     util::{e, R},
 };
 use crate::state::{log, root, tmp_dir, AppState};
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write, path::PathBuf};
+use std::{fs, sync::Arc};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Deserialize, Clone, Default)]
@@ -39,7 +39,7 @@ pub struct Progress {
     pub thumb: Option<String>,
     pub received: u64,
     pub total: u64,
-    pub state: &'static str, // queued | downloading | installing | done | error
+    pub state: &'static str, // queued | downloading | paused | installing | done | error | cancelled
     pub error: Option<String>,
     pub installed: usize,
     pub kind: &'static str, // mod | cursor
@@ -47,46 +47,6 @@ pub struct Progress {
 
 pub fn emit(app: &AppHandle, p: &Progress) {
     let _ = app.emit("dl-progress", p);
-}
-
-pub async fn run_download(app: &AppHandle, base: &Progress, url: &str) -> R<String> {
-    let resp = reqwest::get(url).await.map_err(e)?.error_for_status().map_err(e)?;
-    let total = resp.content_length().unwrap_or(0);
-    // keep the real file name (needed to know zip/rar/vpk) from the final URL or Content-Disposition
-    let cd = resp
-        .headers()
-        .get("content-disposition")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split("filename=").nth(1))
-        .map(|v| v.trim_matches(|c: char| c == '"' || c == ';' || c == ' ').to_string());
-    let fname = cd.unwrap_or_else(|| resp.url().path().rsplit('/').next().unwrap_or("mod").to_string());
-    let dir = app.path().app_cache_dir().map_err(e)?.join("downloads");
-    fs::create_dir_all(&dir).map_err(e)?;
-    let safe: String = fname.chars().map(|c| if r#"<>:"/\|?*"#.contains(c) { '_' } else { c }).collect();
-    let mut path = dir.join(format!("{}_{}", base.id, safe));
-    let mut f = fs::File::create(&path).map_err(e)?;
-    let (mut got, mut last) = (0u64, 0u64);
-    let mut stream = resp.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let c = chunk.map_err(e)?;
-        f.write_all(&c).map_err(e)?;
-        got += c.len() as u64;
-        if got - last > 128 * 1024 {
-            last = got;
-            emit(app, &Progress { received: got, total, state: "downloading", ..base.clone() });
-        }
-    }
-    drop(f);
-    // the real type comes from the file's first bytes; a wrong or missing extension gets fixed here
-    let ext = path.extension().map(|x| x.to_string_lossy().to_lowercase()).unwrap_or_default();
-    let kind = archive::sniff(&path);
-    let want = archive::ext_for(kind);
-    if ext != want {
-        let np = PathBuf::from(format!("{}.{}", path.display(), want));
-        fs::rename(&path, &np).map_err(e)?;
-        path = np;
-    }
-    Ok(path.to_string_lossy().to_string())
 }
 
 pub async fn fetch_thumb(app: &AppHandle, id: &str, url: &str) -> R<String> {
@@ -99,8 +59,8 @@ pub async fn fetch_thumb(app: &AppHandle, id: &str, url: &str) -> R<String> {
     Ok(p.to_string_lossy().to_string())
 }
 
-pub async fn pipeline(app: &AppHandle, base: &Progress, url: &str, meta: &Option<DlMeta>) -> R<(usize, &'static str)> {
-    let path = run_download(app, base, url).await?;
+/// Everything after the file is on disk: extract, detect mod / cursor pack, install (disabled).
+pub async fn pipeline(app: &AppHandle, base: &Progress, path: String, meta: &Option<DlMeta>) -> R<(usize, &'static str)> {
     emit(app, &Progress { state: "installing", ..base.clone() });
     let tmp = tmp_dir(app);
     let mut items = match inspect(&[path.clone()], &tmp) {
@@ -151,6 +111,64 @@ pub async fn pipeline(app: &AppHandle, base: &Progress, url: &str, meta: &Option
     Ok((items.len(), "mod"))
 }
 
+/// One queued download. Lifecycle: queued -> downloading <-> paused -> installing -> done | error | cancelled.
+/// The queue slot (semaphore) is released while paused, so other downloads can go on.
+async fn run_job(app: AppHandle, base: Progress, url: String, meta: Option<DlMeta>, ctl: Arc<Ctl>) {
+    let st = app.state::<AppState>();
+    let client = reqwest::Client::new();
+    let dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir()).join("downloads");
+    let mut part = Partial::default();
+    let result: R<Option<(usize, &'static str)>> = async {
+        loop {
+            if ctl.is_cancelled() {
+                return Ok(None);
+            }
+            if ctl.is_paused() {
+                emit(&app, &Progress { received: part.got, total: part.total, state: "paused", ..base.clone() });
+                ctl.wait_resumed().await;
+                continue;
+            }
+            // wait for our turn in the queue; pause / cancel also work while waiting
+            let Some(permit) = interruptible(&ctl, st.dl.acquire()).await else { continue };
+            let _permit = permit.map_err(e)?;
+            emit(&app, &Progress { received: part.got, total: part.total, state: "downloading", ..base.clone() });
+            let step = fetch_step(&client, &url, &dir, &base.id, &mut part, &ctl, |got, total| {
+                emit(&app, &Progress { received: got, total, state: "downloading", ..base.clone() });
+            })
+            .await?;
+            match step {
+                Step::Cancelled => return Ok(None),
+                Step::Paused => continue, // the permit is dropped here; the top of the loop reports "paused"
+                Step::Finished(p) => {
+                    let p = finalize(&p)?;
+                    part.path = Some(p.clone());
+                    emit(&app, &Progress { received: part.got, total: part.total.max(part.got), state: "installing", ..base.clone() });
+                    return pipeline(&app, &base, p.to_string_lossy().to_string(), &meta).await.map(Some);
+                }
+            }
+        }
+    }
+    .await;
+    match result {
+        Ok(Some((n, kind))) => {
+            log(&app, "INFO", format!("Added {n} {kind}(s) from \"{}\"", base.name));
+            emit(&app, &Progress { state: "done", installed: n, kind, received: part.got, total: part.total.max(part.got), ..base.clone() });
+        }
+        Ok(None) => {
+            log(&app, "INFO", format!("Download cancelled: \"{}\"", base.name));
+            emit(&app, &Progress { state: "cancelled", received: part.got, total: part.total, ..base.clone() });
+        }
+        Err(er) => {
+            log(&app, "ERROR", format!("Download failed for \"{}\": {er}", base.name));
+            emit(&app, &Progress { state: "error", error: Some(er), received: part.got, total: part.total, ..base.clone() });
+        }
+    }
+    if let Some(p) = &part.path {
+        let _ = fs::remove_file(p); // leftovers of a cancelled / failed download (a successful install already removed it)
+    }
+    st.ctls.lock().unwrap().remove(&base.id);
+}
+
 pub fn start_download(app: &AppHandle, url: String, meta: Option<DlMeta>) -> String {
     let id = uuid::Uuid::new_v4().to_string();
     let fallback = url.split('?').next().unwrap_or("mod").rsplit('/').next().unwrap_or("mod").to_string();
@@ -159,23 +177,32 @@ pub fn start_download(app: &AppHandle, url: String, meta: Option<DlMeta>) -> Str
     let base = Progress { id: id.clone(), name, thumb, received: 0, total: 0, state: "queued", error: None, installed: 0, kind: "mod" };
     emit(app, &base);
     log(app, "INFO", format!("Queued download: {} ({url})", base.name));
-    let a = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let st = a.state::<AppState>();
-        let _permit = st.dl.acquire().await;
-        emit(&a, &Progress { state: "downloading", ..base.clone() });
-        match pipeline(&a, &base, &url, &meta).await {
-            Ok((n, kind)) => {
-                log(&a, "INFO", format!("Added {n} {kind}(s) from \"{}\"", base.name));
-                emit(&a, &Progress { state: "done", installed: n, kind, ..base.clone() });
-            }
-            Err(er) => {
-                log(&a, "ERROR", format!("Download failed for \"{}\": {er}", base.name));
-                emit(&a, &Progress { state: "error", error: Some(er), ..base.clone() });
-            }
-        }
-    });
+    let ctl = Arc::new(Ctl::default());
+    app.state::<AppState>().ctls.lock().unwrap().insert(id.clone(), ctl.clone());
+    tauri::async_runtime::spawn(run_job(app.clone(), base, url, meta, ctl));
     id
+}
+
+fn ctl_of(s: &State<AppState>, id: &str) -> R<Arc<Ctl>> {
+    s.ctls.lock().unwrap().get(id).cloned().ok_or_else(|| "This download is not running any more".to_string())
+}
+
+#[tauri::command]
+pub fn dl_pause(s: State<AppState>, id: String) -> R<()> {
+    ctl_of(&s, &id)?.pause();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn dl_resume(s: State<AppState>, id: String) -> R<()> {
+    ctl_of(&s, &id)?.resume();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn dl_cancel(s: State<AppState>, id: String) -> R<()> {
+    ctl_of(&s, &id)?.cancel();
+    Ok(())
 }
 
 #[tauri::command]

@@ -2,13 +2,13 @@
 import "./state.js";
 import { invoke, listen, dialogApi } from "../../core/tauri.js";
 import { S, activeDls } from "../../core/state.js";
-import { toast, pickImage } from "../../core/feedback.js";
+import { toast, call, pickImage } from "../../core/feedback.js";
 import { render, renderNav, renderChrome } from "../../core/render.js";
 import { refresh } from "../mods/data.js";
 import { preloadSoundsFor } from "../mods/sounds.js";
 import { checkModUpdates } from "../mods/updates.js";
 import { cursorsChanged } from "../cursor/data.js";
-import { downloadsView } from "./view.js";
+import { downloadsView, patchDlRow } from "./view.js";
 import { loadBrowse, queueFiles, openFilePicker, doFetch, openLightbox, addUploads } from "./browse.js";
 import { drainLinks } from "./links.js";
 
@@ -16,14 +16,17 @@ export { drainLinks, addUploads };
 
 // progress events of the backend download queue
 function onProgress(ev) {
-  const d = ev.payload, prev = S.dls[d.id] || {};
-  S.dls[d.id] = { ...prev, ...d, received: d.received || prev.received || 0, total: d.total || prev.total || 0 };
+  const d = ev.payload, prev = S.dls[d.id];
+  S.dls[d.id] = { ...prev, ...d, total: d.total || (prev && prev.total) || 0 };
   if (d.state === "done") {
     if (d.kind === "cursor") { toast(`Added ${d.installed} cursor(s) to the Cursor library`); cursorsChanged(); }
     else { toast(`Installed "${d.name}" (disabled)`); refresh().then(() => checkModUpdates(false)); }
   }
   if (d.state === "error") toast(`Download failed: ${d.error}`);
-  if (S.tab === "downloads" && S.dlSub === "queue") render(); else { renderNav(); renderChrome(); }
+  const onQueue = S.tab === "downloads" && S.dlSub === "queue";
+  // same state as before: only the numbers changed, so patch the row instead of re-rendering (keeps its buttons clickable)
+  if (onQueue && prev && prev.state === d.state && patchDlRow(S.dls[d.id])) return;
+  if (onQueue) render(); else { renderNav(); renderChrome(); }
 }
 
 export default {
@@ -39,7 +42,7 @@ export default {
     dsub: (d) => { S.dlSub = d.v; render(); },
     fetch: () => doFetch(),
     gmodel: (d) => { S.gm = d.v; render(); },
-    gbopen: async (d) => { S.loading = true; render(); try { S.gbView = await invoke("gb_mod", { id: +d.id, model: d.model || "Mod" }); await preloadSoundsFor(S.gbView); } catch (er) { toast(er); } S.loading = false; render(); },
+    gbopen: async (d) => { S.gbOpen = {}; S.loading = true; render(); try { S.gbView = await invoke("gb_mod", { id: +d.id, model: d.model || "Mod" }); await preloadSoundsFor(S.gbView); } catch (er) { toast(er); } S.loading = false; render(); },
     gbinst: async (d) => {
       try { await invoke("gb_install", { id: +d.id, model: d.model || "Mod" }); toast("Added to the download queue"); render(); }
       catch (er) {
@@ -47,6 +50,7 @@ export default {
         else toast(er);
       }
     },
+    gbtoggle: (d, el) => { S.gbOpen[d.k] = el.getAttribute("aria-expanded") !== "true"; render(); }, // fold / unfold a block of the detail page
     gbback: () => {
       S.gbView = null;
       if (S.gbFrom === "mods") { S.tab = "mods"; S.gbFrom = ""; }
@@ -60,7 +64,10 @@ export default {
     },
     gbmore: () => loadBrowse(true),
     gblatest: () => loadBrowse(),
-    qclear: () => { for (const [k, d] of Object.entries(S.dls)) if (["done", "error"].includes(d.state)) delete S.dls[k]; render(); },
+    qclear: () => { for (const [k, d] of Object.entries(S.dls)) if (["done", "error", "cancelled"].includes(d.state)) delete S.dls[k]; render(); },
+    dlpause: (d) => call("dl_pause", { id: d.id }),
+    dlresume: (d) => call("dl_resume", { id: d.id }),
+    dlcancel: (d) => call("dl_cancel", { id: d.id }),
     upick: async () => { const p = await dialogApi.open({ multiple: true, filters: [{ name: "Mods", extensions: ["vpk", ...S.exts] }] }); if (p && p.length) addUploads(p); },
     upx: (d) => { S.up.splice(+d.i, 1); render(); },
     upimg: async (d) => { const p = await pickImage(); if (p) { S.up[+d.i].image = p; render(); } },

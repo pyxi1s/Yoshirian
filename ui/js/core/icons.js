@@ -29,6 +29,7 @@ export const P = {
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   upload: '<path d="M12 16V4m0 0l-4 4m4-4l4 4M4 20h16"/>',
   up: '<path d="M12 19V5m0 0l-6 6m6-6l6 6"/>',
+  skip: '<path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
   vol: '<path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
