@@ -1,0 +1,7 @@
+/* Mods tab: drag to reorder. */
+.over{outline:2px solid var(--accent);outline-offset:-2px}
+.dragging{opacity:.5}
+.grip{color:var(--sub);cursor:grab;touch-action:none;padding:4px 2px;display:inline-grid;place-items:center}
+.grip:active{cursor:grabbing}
+.grip.ov{position:absolute;top:8px;left:8px;background:#000b;color:#fff;border-radius:8px;padding:5px;z-index:2}
+[data-act="modopen"]{cursor:pointer}

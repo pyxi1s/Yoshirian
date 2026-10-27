@@ -1,0 +1,7 @@
+/* Sound previews (waveform player). */
+audio{width:100%;max-width:520px;height:38px;margin:4px 0 10px}
+.cardm .img{position:relative}
+.playov{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;background:#000b;color:#fff;border-color:transparent}
+.wave{display:flex;align-items:center;gap:12px}
+.wave canvas{flex:1;height:64px;min-width:0;cursor:pointer}
+.wtime{font:12px var(--mono);color:var(--sub);min-width:92px;text-align:right}

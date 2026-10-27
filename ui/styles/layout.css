@@ -1,0 +1,44 @@
+/* App frame: titlebar, sidebar, content area, drop overlay. */
+#app{position:relative;display:flex;flex-direction:column;height:calc(100vh / var(--scale))}
+#titlebar{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding-left:12px;background:var(--side);border-bottom:1px solid var(--border)}
+.pill{height:32px;padding:0 14px;border-radius:9px;background:var(--panel);font-size:13px}
+.pill.fill{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.pill b{font-family:var(--font-head);font-weight:var(--fw-head);font-size:14px}
+.vsep{width:1px;height:20px;background:var(--border);margin:0 4px}
+.wb{width:44px;height:46px;border:0;border-radius:0;background:none;display:grid;place-items:center;color:var(--sub);padding:0}
+.wb svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+.wb:hover{background:var(--panel);color:var(--text);filter:none}
+.wb.close:hover{background:#e5484d;color:#fff}
+#shell{flex:1;display:flex;min-height:0}
+aside{width:var(--sidew);flex:none;background:var(--side);border-right:1px solid var(--border);padding:16px 12px 10px;display:flex;flex-direction:column;gap:10px;transition:width .2s}
+.brandbox{display:flex;align-items:center;gap:12px;padding:0 6px 10px}
+.logo{width:36px;height:36px;border-radius:50%;flex:none}
+.brand{display:block;font-family:var(--font-head);font-size:22px;font-weight:var(--fw-head);line-height:1.1}
+.brandbox small{color:var(--sub)}
+nav{flex:1;display:grid;gap:3px;align-content:start;overflow:auto}
+.navlabel{font-size:12px;color:var(--sub);padding:14px 12px 4px}
+nav button,.navbtn{display:flex;align-items:center;gap:12px;text-align:left;border:0;background:none;color:var(--text);padding:10px 12px;border-radius:10px;font:inherit;cursor:pointer;width:100%;justify-content:flex-start}
+nav button:hover,.navbtn:hover{background:var(--panel);filter:none}
+nav button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+nav .badge{margin-left:auto;background:var(--panel);color:var(--text);border-radius:8px;font-size:12px;padding:0 8px;font-weight:600}
+nav button.on .badge{background:var(--on-accent);color:var(--accent)}
+.navbtn{border-top:1px solid var(--border);border-radius:0;margin-top:6px;padding-top:14px}
+body.collapsed aside{width:68px}
+body.collapsed .side-bottom .lbl,body.collapsed .lbl,body.collapsed .navlabel,body.collapsed .brandbox div,body.collapsed .badge{display:none}
+body.collapsed nav button,body.collapsed .navbtn{justify-content:center}
+.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:middle}
+nav .i{width:18px;height:18px}
+main{flex:1;min-width:0;display:flex;flex-direction:column}
+#content{flex:1;overflow:auto;padding:24px 28px}
+#banner{background:var(--accent);color:var(--on-accent);padding:8px 28px;font-size:13px;font-weight:600}
+.side-bottom{display:grid;gap:8px;margin-top:6px}
+.side-bottom button{width:100%;padding:9px 12px}
+#tstatus{display:flex;gap:8px;align-items:center;margin-left:6px}
+.st{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--sub);border:1px solid var(--border);background:var(--panel);border-radius:9px;padding:5px 8px}
+.st.ok{color:var(--ok)}.st.bad{color:var(--danger)}
+.ico{display:none}
+body.collapsed .ico{display:inline-flex}
+#drop{position:fixed;inset:0;background:#ead9b022;border:3px dashed var(--accent);display:none;place-items:center;font-size:22px;font-weight:600;pointer-events:none;z-index:50}
+#drop.on{display:grid}
+.vol{display:flex;align-items:center;gap:2px;margin-right:6px}
+.vol input{width:86px}

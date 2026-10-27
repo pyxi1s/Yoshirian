@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yoshirian</title>
+<link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+<div id="bg"></div>
+<div id="app">
+  <div id="titlebar" data-tauri-drag-region>
+    <button id="pill" class="pill" title="Profiles"></button>
+    <div id="tstatus" data-tauri-drag-region></div>
+    <span class="grow" data-tauri-drag-region></span>
+    <button id="openMods" class="pill" title="Open mods (addons) folder"></button>
+    <button id="openGame" class="pill" title="Open game folder"></button>
+    <div class="vol" title="App volume (sound previews)"><button class="ib ghost sm" id="volbtn"></button><button class="ib ghost sm" id="volstop" title="Stop the sound"></button><input type="range" id="vol" min="0" max="100"></div>
+    <button id="reload" class="pill" title="Reload the app"></button>
+    <button id="upd" class="pill" title="Check for app updates"></button>
+    <span class="vsep"></span>
+    <button class="wb" id="wmin" title="Minimize"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button class="wb" id="wmax" title="Maximize"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
+    <button class="wb close" id="wclose" title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="shell">
+    <aside>
+      <div class="brandbox"><img class="logo" src="assets/icon.png" alt=""><div><b class="brand">Yoshirian</b><small id="ver"></small></div></div>
+      <nav id="nav"></nav>
+      <div class="side-bottom">
+        <button id="btnMods" class="grad" title="Launch with mods"></button>
+        <button id="btnVanilla" title="Launch without mods"></button>
+      </div>
+      <button id="collapse" class="navbtn" title="Collapse menu"></button>
+    </aside>
+    <main>
+      <div id="banner" hidden></div>
+      <section id="content"></section>
+    </main>
+  </div>
+</div>
+<div id="drop">Drop .vpk / .zip / .rar / .7z to install</div>
+<div id="toast"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

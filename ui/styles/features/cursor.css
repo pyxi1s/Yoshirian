@@ -1,0 +1,8 @@
+/* Cursor tab. */
+.cimg{image-rendering:pixelated;object-fit:contain;border:1px solid var(--border);border-radius:6px;flex:none;background:conic-gradient(#8883 25%,transparent 0 50%,#8883 0 75%,transparent 0) 0 0/12px 12px}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:var(--gap);margin-bottom:26px}
+.slot{display:flex;gap:14px;align-items:center;margin:0;min-width:0;overflow:hidden}
+.slot>div:last-child{flex:1;min-width:0}
+.slot select{width:100%}
+.cpv{display:grid;place-items:center;height:180px;background:var(--panel);overflow:hidden}
+.cpv .cimg{max-width:100%;max-height:100%}
