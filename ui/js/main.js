@@ -12,6 +12,7 @@ import { initShell } from "./shell.js";
 import { refresh } from "./features/mods/data.js";
 import { checkModUpdates } from "./features/mods/updates.js";
 import { drainLinks } from "./features/downloads/index.js";
+import { checkAppUpdate } from "./features/appupdate/index.js";
 
 register(FEATURES);
 onAfterRender(mountWaves);
@@ -24,10 +25,11 @@ initShell();
   S.set = await invoke("get_settings");
   const info = await invoke("get_info");
   S.version = info.version;
+  S.defaultRepo = info.default_update_repo;
   S.exts = await invoke("archive_exts").catch(() => S.exts);
   $("#ver").textContent = "v" + info.version;
   await refresh();
   drainLinks();
   if (S.set.auto_mod_update_check) checkModUpdates(false);
-  if (S.set.auto_update_check && S.set.update_repo) invoke("check_update").then((v) => { if (v) { const b = $("#banner"); b.textContent = `Version ${v} is available`; b.hidden = false; } }).catch(() => {});
+  if (S.set.auto_update_check) checkAppUpdate({ auto: true }); // every start; the popup opens only for a release / hotfix that was not skipped
 })();

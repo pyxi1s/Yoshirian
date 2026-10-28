@@ -6,5 +6,6 @@ import mods from "./mods/index.js";
 import downloads from "./downloads/index.js";
 import cursor from "./cursor/index.js";
 import settings from "./settings/index.js";
+import appupdate from "./appupdate/index.js";
 
-export const FEATURES = [common, mods, downloads, cursor, settings];
+export const FEATURES = [common, mods, downloads, cursor, settings, appupdate];

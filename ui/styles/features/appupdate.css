@@ -1,0 +1,7 @@
+/* App update: title bar button, popup and the notes box. */
+#upd{display:flex;align-items:center;gap:6px;color:var(--accent);border-color:var(--accent)}
+#upd.crit{color:var(--danger);border-color:var(--danger);background:var(--danger-bg)}
+#upd svg{width:15px;height:15px}
+.tag.crit{color:var(--danger);border-color:var(--danger);background:var(--danger-bg);margin-left:6px;vertical-align:middle}
+.upd-notes{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:13px;color:var(--sub);background:#0003;border:1px solid var(--border);border-radius:10px;padding:10px 12px;user-select:text}
+#updpop .bar{height:8px;margin:14px 0 4px}

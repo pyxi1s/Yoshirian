@@ -15,7 +15,13 @@ pub fn get_settings(s: State<AppState>) -> Settings {
 }
 
 #[tauri::command]
-pub fn save_settings(app: AppHandle, s: State<AppState>, settings: Settings) -> R<()> {
+pub fn save_settings(app: AppHandle, s: State<AppState>, mut settings: Settings) -> R<()> {
+    {
+        // the update repository and the skipped release are changed by their own commands only
+        let cur = s.settings.lock().unwrap();
+        settings.update_repo = cur.update_repo.clone();
+        settings.skipped_update = cur.skipped_update.clone();
+    }
     persist(&app, &settings)?;
     *s.settings.lock().unwrap() = settings;
     Ok(())
@@ -44,6 +50,7 @@ pub fn set_root(app: AppHandle, s: State<AppState>, path: String) -> R<()> {
 #[derive(Serialize)]
 pub struct Info {
     version: String,
+    default_update_repo: &'static str,
     root: Option<String>,
     addons: Option<String>,
     meta_file: Option<String>,
@@ -56,6 +63,7 @@ pub fn get_info(app: AppHandle, s: State<AppState>) -> Info {
     let r = root(&s).ok();
     Info {
         version: app.package_info().version.to_string(),
+        default_update_repo: crate::domain::appupdate::DEFAULT_REPO,
         addons: r.as_ref().map(|r| addons(r).to_string_lossy().to_string()),
         meta_file: r.as_ref().map(|r| addons(r).join(META).to_string_lossy().to_string()),
         root: r.map(|r| r.to_string_lossy().to_string()),

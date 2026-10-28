@@ -58,7 +58,6 @@ const acts = {
     if (!setList(d.kind).includes(v)) setList(d.kind).push(v);
     saveUi(); render();
   },
-  ucheck: async () => { try { const v = await invoke("check_update"); toast(v ? `New version available: ${v}` : "You are on the latest version"); } catch (er) { toast(er); } },
   lrefresh: async () => { S.logs = await invoke("get_logs"); render(); },
   lclear: async () => { await invoke("clear_logs"); S.logs = []; render(); },
   dreload: () => refresh().then(() => toast("Reloaded")),

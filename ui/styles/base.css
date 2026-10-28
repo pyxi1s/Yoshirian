@@ -39,3 +39,4 @@ a:hover{text-decoration:underline}
 .hex{width:84px;font:12px var(--mono);padding:4px 8px}
 :root[data-anim=off] *{transition:none!important}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+[hidden]{display:none!important}

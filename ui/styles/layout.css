@@ -30,7 +30,6 @@ body.collapsed nav button,body.collapsed .navbtn{justify-content:center}
 nav .i{width:18px;height:18px}
 main{flex:1;min-width:0;display:flex;flex-direction:column}
 #content{flex:1;overflow:auto;padding:24px 28px}
-#banner{background:var(--accent);color:var(--on-accent);padding:8px 28px;font-size:13px;font-weight:600}
 .side-bottom{display:grid;gap:8px;margin-top:6px}
 .side-bottom button{width:100%;padding:9px 12px}
 #tstatus{display:flex;gap:8px;align-items:center;margin-left:6px}

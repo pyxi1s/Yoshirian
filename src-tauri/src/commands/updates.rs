@@ -3,7 +3,7 @@ use super::downloads::{meta_from, start_download};
 use crate::domain::{
     gamebanana as gb,
     meta::{copy_asset, load, norm_model, save, update_pending},
-    util::{e, R},
+    util::R,
 };
 use crate::state::{log, root, AppState};
 use super::downloads::fetch_thumb;
@@ -124,30 +124,4 @@ pub async fn update_mod(app: AppHandle, id: String) -> R<String> {
     let mut meta = meta_from(item);
     meta.update = true;
     Ok(start_download(&app, f.url, Some(meta)))
-}
-
-pub fn newer(a: &str, b: &str) -> bool {
-    let p = |s: &str| s.trim_start_matches('v').split('.').map(|x| x.parse::<u32>().unwrap_or(0)).collect::<Vec<_>>();
-    p(a) > p(b)
-}
-
-#[tauri::command]
-pub async fn check_update(app: AppHandle) -> R<Option<String>> {
-    let repo = app.state::<AppState>().settings.lock().unwrap().update_repo.trim().to_string();
-    if repo.is_empty() {
-        return Err("Set the update repository (owner/repo) in Settings → Updates".into());
-    }
-    let cur = app.package_info().version.to_string();
-    let c = reqwest::Client::builder().user_agent("yoshirian").build().map_err(e)?;
-    let v: serde_json::Value = c
-        .get(format!("https://api.github.com/repos/{repo}/releases/latest"))
-        .send()
-        .await
-        .map_err(e)?
-        .json()
-        .await
-        .map_err(e)?;
-    let tag = v["tag_name"].as_str().unwrap_or("").to_string();
-    log(&app, "INFO", format!("Update check: current {cur}, latest \"{tag}\""));
-    Ok(if !tag.is_empty() && newer(&tag, &cur) { Some(tag) } else { None })
 }

@@ -17,7 +17,7 @@
     <button id="openGame" class="pill" title="Open game folder"></button>
     <div class="vol" title="App volume (sound previews)"><button class="ib ghost sm" id="volbtn"></button><button class="ib ghost sm" id="volstop" title="Stop the sound"></button><input type="range" id="vol" min="0" max="100"></div>
     <button id="reload" class="pill" title="Reload the app"></button>
-    <button id="upd" class="pill" title="Check for app updates"></button>
+    <button id="upd" class="pill" hidden></button>
     <span class="vsep"></span>
     <button class="wb" id="wmin" title="Minimize"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
     <button class="wb" id="wmax" title="Maximize"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
@@ -34,7 +34,6 @@
       <button id="collapse" class="navbtn" title="Collapse menu"></button>
     </aside>
     <main>
-      <div id="banner" hidden></div>
       <section id="content"></section>
     </main>
   </div>

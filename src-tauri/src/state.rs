@@ -1,5 +1,6 @@
 //! Application state shared by all commands: user settings, download queue, logs.
 use crate::domain::{
+    appupdate::{normalize_repo, DEFAULT_REPO},
     download::Ctl,
     paths::valid_root,
     util::{e, R},
@@ -16,7 +17,8 @@ pub struct Settings {
     pub gameinfo_auto: bool,
     pub external_editor: String,
     pub launch_options: String,
-    pub update_repo: String, // "owner/repo"
+    pub update_repo: String,     // "owner/repo" the app updates from (default: DEFAULT_REPO)
+    pub skipped_update: String,  // tag of the app release the user chose to skip ("" = none)
     pub auto_update_check: bool,
     pub auto_mod_update_check: bool,
     pub auto_cursor_preset: bool,
@@ -31,7 +33,8 @@ impl Default for Settings {
             gameinfo_auto: true,
             external_editor: String::new(),
             launch_options: String::new(),
-            update_repo: String::new(),
+            update_repo: DEFAULT_REPO.to_string(),
+            skipped_update: String::new(),
             auto_update_check: true,
             auto_mod_update_check: true,
             auto_cursor_preset: true,
@@ -40,10 +43,19 @@ impl Default for Settings {
     }
 }
 
+impl Settings {
+    /// Repair values read from settings.json (an empty or invalid update repository means "use the default").
+    pub fn sanitize(&mut self) {
+        self.update_repo = normalize_repo(&self.update_repo).unwrap_or_else(|| DEFAULT_REPO.to_string());
+    }
+}
+
 pub struct AppState {
     pub settings: Mutex<Settings>,
     pub dl: tokio::sync::Semaphore,   // download queue: one at a time
     pub ctls: Mutex<HashMap<String, Arc<Ctl>>>, // pause / resume / cancel handles of unfinished downloads
+    pub updating: std::sync::atomic::AtomicBool,      // the app installer is being downloaded
+    pub update_ctl: Mutex<Option<Arc<Ctl>>>,         // cancel handle of that download
     pub pending: Mutex<Vec<String>>, // deep links waiting for the UI
     pub logs: Mutex<Vec<String>>,
 }
@@ -54,6 +66,8 @@ impl AppState {
             settings: Mutex::new(Settings::default()),
             dl: tokio::sync::Semaphore::new(1),
             ctls: Mutex::new(HashMap::new()),
+            updating: std::sync::atomic::AtomicBool::new(false),
+            update_ctl: Mutex::new(None),
             pending: Mutex::new(vec![]),
             logs: Mutex::new(vec![]),
         }

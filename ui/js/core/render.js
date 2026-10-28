@@ -24,7 +24,12 @@ export function renderChrome() {
   $("#btnMods").innerHTML = `${ic("play")}<span class="lbl">Launch with mods · ${on}</span>`;
   $("#openMods").innerHTML = `${ic("folder")} Mods folder`;
   $("#openGame").innerHTML = `${ic("folder")} Game folder`;
-  $("#upd").innerHTML = ic("up");
+  // "Update" is only there while an update is on offer (not skipped)
+  const au = S.appUpdate, pend = !!(au && au.latest && !au.skipped), ub = $("#upd");
+  ub.hidden = !pend;
+  ub.classList.toggle("crit", pend && au.latest.critical);
+  ub.title = pend ? `Version ${au.latest.version} is available${au.latest.critical ? " (critical fix)" : ""}` : "";
+  ub.innerHTML = `${ic("up")}<span>Update</span>`;
   $("#reload").innerHTML = ic("refresh");
   const ok = !!S.set.game_root && !S.err;
   $("#tstatus").innerHTML = `<span class="st ${ok ? "ok" : "bad"}" title="${ok ? "Game folder found" : "Game folder missing"}">${ic("folder")}</span><span class="st ${S.patched ? "ok" : ""}" title="gameinfo.gi: ${S.patched ? "patched (mods enabled)" : "vanilla"}">${ic("check")}</span>${activeDls() ? `<span class="st ok" title="${activeDls()} download(s) in progress">${ic("downloads")}</span>` : ""}`;

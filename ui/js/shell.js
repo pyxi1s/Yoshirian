@@ -23,7 +23,7 @@ export function initShell() {
   $("#collapse").onclick = () => { ui.collapsed = !ui.collapsed; saveUi(); renderNav(); };
   $("#openMods").onclick = () => call("open_folder", { kind: "addons" }).catch(() => {});
   $("#openGame").onclick = () => call("open_folder", { kind: "game" }).catch(() => {});
-  $("#upd").onclick = () => runAct("ucheck");
+  $("#upd").onclick = () => runAct("updopen");
   $("#reload").onclick = () => location.reload();
 
   // volume of sound previews

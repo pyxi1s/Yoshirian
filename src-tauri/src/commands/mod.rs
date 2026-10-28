@@ -1,5 +1,6 @@
 //! Thin `#[tauri::command]` layer: each file serves one area of the UI and only glues the
 //! frontend to `domain` (core logic) and `state` (settings, logs).
+pub mod appupdate;
 pub mod cursor;
 pub mod downloads;
 pub mod game;

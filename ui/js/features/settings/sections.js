@@ -5,6 +5,7 @@ import { ic, ib } from "../../core/icons.js";
 import { pageHead } from "../../core/components.js";
 import { swi, toggles, editorCard } from "./editors.js";
 import { appearanceView } from "./appearance.js";
+import { appUpdateBlock } from "../appupdate/view.js";
 
 export const SUBS = [["game", "Game folder"], ["gameinfo", "gameinfo.gi"], ["launch", "Launch options"], ["autoexec", "Autoexec.cfg"], ["cursor", "Cursor"], ["downloads", "Downloads"], ["appearance", "Appearance"], ["updates", "Updates"], ["logs", "Logs"], ["debug", "Debug"]];
 
@@ -34,10 +35,11 @@ export function secBody(k) {
       <div class="form"><span>Ask before 1-click installs</span><label class="sw"><input type="checkbox" data-ch="asklink" ${ui.askLink ? "checked" : ""}><i></i></label></div>
       <p style="margin:0">Only GameBanana links are accepted. Installed mods always start disabled.</p></div>`;
     case "appearance": return appearanceView();
-    case "updates": return `<div class="card"><p>Installed version: ${esc(S.version)}</p>
-      <div class="fld">GitHub repository (owner/repo)<input type="text" data-ch="sfield" data-k="update_repo" value="${esc(s.update_repo)}" placeholder="yourname/yoshirian"></div>
-      <div class="form"><span>Check for app updates on startup</span>${swi("auto_update_check", s.auto_update_check)}</div>
-      <div class="form"><button class="primary" data-act="ucheck">${ic("refresh")} Check app updates</button></div>
+    case "updates": return `<div class="card"><div class="form"><span>Installed version</span><b>v${esc(S.version)}</b></div>
+      ${appUpdateBlock()}
+      <div class="fld">Update source — GitHub repository<div class="form" style="margin:0"><input type="text" data-ch="updrepo" value="${esc(s.update_repo)}" placeholder="${esc(S.defaultRepo)}"><button data-act="updreset" title="Back to ${esc(S.defaultRepo)}">Reset to default</button></div><small class="sub">Default: ${esc(S.defaultRepo)}. You can type owner/repo or paste a GitHub link.</small></div>
+      <div class="form"><span>Check for app updates when the program starts</span>${swi("auto_update_check", s.auto_update_check)}</div>
+      <hr style="border:0;border-top:1px solid var(--border);margin:14px 0">
       <div class="form"><span>Check for mod updates on startup (notify only)</span>${swi("auto_mod_update_check", s.auto_mod_update_check)}</div>
       <div class="form"><button data-act="chkupd">${ic("refresh")} Check mod updates now</button></div></div>`;
     case "logs": return `<div class="form">${ib("lrefresh", "refresh", "Refresh")}${ib("lclear", "trash", "Clear", "", "danger")}${ib("dopen", "folder", "Open log folder", 'data-k="logs"')}<small class="sub">Auto-refreshes while visible.</small></div><div class="logbox" id="logbox">${logHtml()}</div>`;

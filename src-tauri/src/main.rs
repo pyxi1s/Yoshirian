@@ -10,7 +10,7 @@ mod commands;
 mod domain;
 mod state;
 
-use commands::{cursor, downloads, game, gamebanana, logs, mods, profiles, settings, updates};
+use commands::{appupdate, cursor, downloads, game, gamebanana, logs, mods, profiles, settings, updates};
 use domain::paths::{detect, valid_root};
 use state::{log, persist, settings_path, tmp_dir, AppState, Settings};
 use std::{fs, path::PathBuf};
@@ -35,7 +35,8 @@ fn main() {
             // load settings
             if let Ok(sp) = settings_path(&h) {
                 if let Ok(t) = fs::read_to_string(sp) {
-                    if let Ok(v) = serde_json::from_str::<Settings>(&t) {
+                    if let Ok(mut v) = serde_json::from_str::<Settings>(&t) {
+                        v.sanitize();
                         *st.settings.lock().unwrap() = v;
                     }
                 }
@@ -53,6 +54,7 @@ fn main() {
             let snapshot = st.settings.lock().unwrap().clone();
             let _ = persist(&h, &snapshot);
             let _ = fs::remove_dir_all(tmp_dir(&h)); // clear old extractions
+            let _ = fs::remove_dir_all(appupdate::update_dir(&h)); // a finished app update left its installer here
             log(&h, "INFO", format!("Yoshirian {} started", h.package_info().version));
 
             #[cfg(any(windows, target_os = "linux"))]
@@ -88,7 +90,10 @@ fn main() {
             gamebanana::fetch_audio, gamebanana::open_link,
             downloads::download, downloads::dl_pause, downloads::dl_resume, downloads::dl_cancel, downloads::take_links, downloads::link_kind, downloads::process_link,
             // updates
-            updates::check_mod_updates, updates::skip_mod_update, updates::update_mod, updates::check_update,
+            updates::check_mod_updates, updates::skip_mod_update, updates::update_mod,
+            // app updates
+            appupdate::check_app_update, appupdate::skip_app_update, appupdate::set_update_repo,
+            appupdate::install_app_update, appupdate::cancel_app_update,
             // cursors
             cursor::cursor_info, cursor::cursor_inspect, cursor::cursor_add, cursor::cursor_rename,
             cursor::cursor_delete, cursor::cursor_activate, cursor::cursor_profile, cursor::cursor_restore_all,
@@ -96,4 +101,16 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Yoshirian");
+}
+
+#[cfg(test)]
+mod tests {
+    /// The app version has ONE source: package.json. `tauri.conf.json` points to it, and everything
+    /// (window text, logs, update check, installer name) reads it from Tauri at run time.
+    #[test]
+    fn app_version_comes_from_package_json() {
+        let pkg: serde_json::Value = serde_json::from_str(include_str!("../../package.json")).unwrap();
+        let ctx: tauri::Context<tauri::Wry> = tauri::generate_context!();
+        assert_eq!(ctx.package_info().version.to_string(), pkg["version"].as_str().unwrap());
+    }
 }

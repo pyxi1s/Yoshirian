@@ -2,6 +2,12 @@
   "name": "yoshirian",
   "version": "0.1.0",
   "private": true,
-  "scripts": { "tauri": "tauri", "dev": "tauri dev", "build": "tauri build" },
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "release:patch": "npm version patch && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags"
+  },
   "devDependencies": { "@tauri-apps/cli": "^2" }
 }
