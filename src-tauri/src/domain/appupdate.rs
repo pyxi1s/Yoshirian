@@ -5,7 +5,7 @@
 //! * a normal published release that is newer than the installed version  -> offered ("Release")
 //! * a draft                                                              -> never offered
 //! * a pre-release                                                        -> not offered ...
-//! * ... unless it is a hotfix: the tag or title contains "hotfix", or the notes contain `[critical]` / `[hotfix]`.
+//! * ... unless it is a hotfix: `[critical]` or `[hotfix]` in the title, tag or notes, or the word "hotfix" in the title / tag.
 //!   A hotfix is offered even when it is marked as a pre-release, and the popup shows a "Critical fix" badge.
 use super::util::{e, R};
 use semver::Version;
@@ -78,11 +78,12 @@ pub struct Release {
     pub assets: Vec<Asset>,
 }
 
-/// Hotfix marker (see the module docs). Deliberately explicit so a sentence like "not critical" does not match.
+/// Hotfix marker (see the module docs): `[critical]` or `[hotfix]` in the tag, the title or the notes, or the word
+/// "hotfix" in the tag / title. Deliberately explicit, so a sentence like "not a critical change" does not match.
 pub fn is_critical(tag: &str, name: &str, body: &str) -> bool {
     let head = format!("{tag} {name}").to_lowercase();
-    let b = body.to_lowercase();
-    ["hotfix", "hot-fix", "hot fix"].iter().any(|k| head.contains(k)) || b.contains("[critical]") || b.contains("[hotfix]")
+    let all = format!("{head} {}", body.to_lowercase());
+    ["hotfix", "hot-fix", "hot fix"].iter().any(|k| head.contains(k)) || ["[critical]", "[hotfix]"].iter().any(|k| all.contains(k))
 }
 
 /// Releases from the GitHub API (drafts and tags that are not versions are dropped).
@@ -219,6 +220,10 @@ mod tests {
         assert!(is_critical("v1.0.1", "Hotfix: crash on start", ""));
         assert!(is_critical("v1.0.1-hotfix", "", ""));
         assert!(is_critical("v1.0.1", "", "Fixes data loss.\n[critical]"));
+        assert!(is_critical("0.1.2", "[critical] 0.1.2", "rework app update"), "marker in the title (no v in the tag)");
+        assert!(is_critical("0.1.2", "[Critical] 0.1.2", ""), "case does not matter");
+        assert!(is_critical("v1.0.1-hotfix", "", ""));
+        assert!(!is_critical("0.1.2", "Critical thinking", "critical"), "the word alone, without brackets, is not a marker");
         assert!(!is_critical("v1.0.1", "Small changes", "This is not a critical change for most people"));
     }
 

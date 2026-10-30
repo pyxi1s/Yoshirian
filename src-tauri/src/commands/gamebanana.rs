@@ -1,17 +1,19 @@
 //! GameBanana browsing / lookup / one-click install.
 use super::downloads::{meta_from, start_download};
 use crate::domain::{
-    gamebanana as gb,
+    gamebanana as gb, gbquery,
     util::{b64, e, open_url, R},
 };
 use crate::state::log;
 use tauri::AppHandle;
 
+/// Everything the search box can do: a link / id / /dl/ link, `author:"Name"`, or plain words.
 #[tauri::command]
-pub async fn gb_lookup(input: String) -> R<gb::Lookup> {
-    gb::lookup(&input).await
+pub async fn gb_find(args: gbquery::FindArgs) -> R<gb::Lookup> {
+    gbquery::find(gb::API, args).await
 }
 
+/// "Latest updates" of the game: what is shown when the browse button is pressed.
 #[tauri::command]
 pub async fn gb_browse(page: u32) -> R<Vec<gb::GbMod>> {
     gb::browse(page).await

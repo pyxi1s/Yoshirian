@@ -1,13 +1,16 @@
 {
   "name": "yoshirian",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "private": true,
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
     "build": "tauri build",
-    "release:patch": "npm version patch && git push --follow-tags",
-    "release:minor": "npm version minor && git push --follow-tags"
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "release:hotfix": "npm version patch && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:major": "npm version major && git push --follow-tags"
   },
   "devDependencies": { "@tauri-apps/cli": "^2" }
 }

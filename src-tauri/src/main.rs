@@ -53,6 +53,11 @@ fn main() {
             }
             let snapshot = st.settings.lock().unwrap().clone();
             let _ = persist(&h, &snapshot);
+            {
+                // requests to GameBanana (and fallbacks) show up in Settings -> Logs
+                let hl = h.clone();
+                domain::gamebanana::set_logger(move |level, msg| log(&hl, level, msg));
+            }
             let _ = fs::remove_dir_all(tmp_dir(&h)); // clear old extractions
             let _ = fs::remove_dir_all(appupdate::update_dir(&h)); // a finished app update left its installer here
             log(&h, "INFO", format!("Yoshirian {} started", h.package_info().version));
@@ -86,7 +91,7 @@ fn main() {
             // logs
             logs::get_logs, logs::clear_logs, logs::log_ui,
             // GameBanana & downloads
-            gamebanana::gb_lookup, gamebanana::gb_browse, gamebanana::gb_mod, gamebanana::gb_install,
+            gamebanana::gb_find, gamebanana::gb_browse, gamebanana::gb_mod, gamebanana::gb_install,
             gamebanana::fetch_audio, gamebanana::open_link,
             downloads::download, downloads::dl_pause, downloads::dl_resume, downloads::dl_cancel, downloads::take_links, downloads::link_kind, downloads::process_link,
             // updates

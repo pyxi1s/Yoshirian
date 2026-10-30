@@ -25,6 +25,7 @@ flate2 = "1.1.10"
 sevenz-rust2 = { version = "0.20", default-features = false, features = ["deflate"] }
 semver = "1.0.28"
 sha2 = "0.11.1"
+unrar = "0.5.8"
 
 [dev-dependencies]
 sevenz-rust2 = { version = "0.20", default-features = false, features = ["deflate", "compress", "util"] }

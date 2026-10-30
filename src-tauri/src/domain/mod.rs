@@ -4,6 +4,7 @@ pub mod archive;
 pub mod cursor;
 pub mod download;
 pub mod gamebanana;
+pub mod gbquery;
 pub mod gameinfo;
 pub mod install;
 pub mod meta;

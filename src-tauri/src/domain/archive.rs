@@ -1,9 +1,11 @@
 //! Archive support. The kind is detected from the file's first bytes (not only the extension), so a
 //! download or a drop with a wrong / missing extension still works.
 //!
-//! * built in (no external program): zip, 7z (LZMA / LZMA2 / Deflate / Copy), tar, tar.gz / tgz, single .gz
-//! * everything else (rar, bz2, xz, zst, cab, 7z with other codecs ...) goes through `tar` = libarchive,
-//!   which ships with Windows 10+ (and with macOS). If it is missing the error says so.
+//! * built in (no external program): zip, rar (the official UnRAR code, RAR 3/4/5), 7z (LZMA / LZMA2 / Deflate / Copy),
+//!   tar, tar.gz / tgz, single .gz
+//! * when the built-in reader fails, and for bz2 / xz / zst / cab / other 7z codecs: the system `tar`
+//!   (libarchive, ships with Windows 10+), then 7-Zip when it is installed. Each attempt overwrites the files of the
+//!   previous one, so a half-finished attempt never leaves a broken file behind.
 use super::util::{e, ext_of, hide, R};
 use std::{
     fs,
@@ -103,26 +105,45 @@ pub fn is_archive(p: &Path) -> bool {
 pub fn extract(archive: &Path, dest: &Path) -> R<()> {
     fs::create_dir_all(dest).map_err(e)?;
     let kind = sniff(archive);
+    let name = archive.file_name().unwrap_or_default().to_string_lossy().to_string();
+    if kind == Kind::Unknown {
+        return Err(format!("{name}: unsupported file type"));
+    }
+    let mut tried: Vec<String> = vec![];
+
+    // 1) the built-in reader
     let native = match kind {
-        Kind::Zip => extract_zip(archive, dest),
-        Kind::SevenZ => extract_7z(archive, dest),
-        Kind::Tar => extract_tar(fs::File::open(archive).map_err(e)?, dest),
-        Kind::Gz => extract_gz(archive, dest),
-        _ => Err("no built-in reader".to_string()),
+        Kind::Zip => Some(extract_zip(archive, dest)),
+        Kind::SevenZ => Some(extract_7z(archive, dest)),
+        Kind::Rar => Some(extract_rar(archive, dest)),
+        Kind::Tar => Some(fs::File::open(archive).map_err(e).and_then(|f| extract_tar(f, dest))),
+        Kind::Gz => Some(extract_gz(archive, dest)),
+        _ => None,
     };
     match native {
-        Ok(()) => Ok(()),
-        Err(native_err) => system_tar(archive, dest).map_err(|sys_err| {
-            let name = archive.file_name().unwrap_or_default().to_string_lossy().to_string();
-            if matches!(kind, Kind::Unknown) {
-                format!("{name}: unsupported file type")
-            } else if native_err == "no built-in reader" {
-                format!("Could not extract {name} ({sys_err}). Try a .zip or .7z, or extract it manually.")
-            } else {
-                format!("Could not extract {name} ({native_err}; fallback: {sys_err})")
-            }
-        }),
+        Some(Ok(())) => return Ok(()),
+        Some(Err(er)) => tried.push(format!("built-in reader: {er}")),
+        None => {}
     }
+    // 2) libarchive (`tar`)
+    match system_tar(archive, dest) {
+        Ok(()) => return Ok(()),
+        Err(er) => tried.push(format!("Windows tar: {}", one_line(&er))),
+    }
+    // 3) 7-Zip, when it is installed
+    match seven_zip(archive, dest) {
+        Some(Ok(())) => return Ok(()),
+        Some(Err(er)) => tried.push(format!("7-Zip: {}", one_line(&er))),
+        None => tried.push("7-Zip: not installed".to_string()),
+    }
+    Err(format!(
+        "Could not extract {name}. The file may be damaged, or uses a format the app cannot read.\n{}\nTip: open it with 7-Zip (7-zip.org), then drag the .vpk file into Yoshirian.",
+        tried.iter().map(|x| format!("- {x}")).collect::<Vec<_>>().join("\n")
+    ))
+}
+
+fn one_line(s: &str) -> String {
+    s.lines().map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" / ")
 }
 
 fn extract_zip(archive: &Path, dest: &Path) -> R<()> {
@@ -182,6 +203,61 @@ fn extract_gz(archive: &Path, dest: &Path) -> R<()> {
     let mut whole = whole;
     io::copy(&mut whole, &mut fs::File::create(dest.join(stem)).map_err(e)?).map_err(e)?;
     Ok(())
+}
+
+/// RAR 3 / 4 / 5 with the official UnRAR code. Every entry is placed by `safe_join`, so nothing can leave `dest`.
+fn extract_rar(archive: &Path, dest: &Path) -> R<()> {
+    let mut cur = unrar::Archive::new(archive).open_for_processing().map_err(e)?;
+    while let Some(header) = cur.read_header().map_err(e)? {
+        let (name, is_file, encrypted) = {
+            let en = header.entry();
+            (en.filename.to_string_lossy().to_string(), en.is_file(), en.is_encrypted())
+        };
+        if !is_file {
+            cur = header.skip().map_err(e)?; // folders are created together with the files in them
+            continue;
+        }
+        if encrypted {
+            return Err("the archive is password protected".into());
+        }
+        cur = match safe_join(dest, &name) {
+            Some(p) => {
+                if let Some(parent) = p.parent() {
+                    fs::create_dir_all(parent).map_err(e)?;
+                }
+                header.extract_to(&p).map_err(e)?
+            }
+            None => header.skip().map_err(e)?,
+        };
+    }
+    Ok(())
+}
+
+/// 7-Zip from PATH or its usual install folders. `None` = it is not installed.
+fn seven_zip(archive: &Path, dest: &Path) -> Option<R<()>> {
+    let mut candidates: Vec<PathBuf> = ["7z", "7zz", "7za"].iter().map(PathBuf::from).collect();
+    for var in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] {
+        if let Ok(base) = std::env::var(var) {
+            candidates.push(Path::new(&base).join("7-Zip").join("7z.exe"));
+        }
+    }
+    if let Ok(base) = std::env::var("LOCALAPPDATA") {
+        candidates.push(Path::new(&base).join("Programs").join("7-Zip").join("7z.exe"));
+    }
+    for exe in candidates {
+        let mut c = std::process::Command::new(&exe);
+        hide(&mut c);
+        let mut out_arg = std::ffi::OsString::from("-o");
+        out_arg.push(dest);
+        let o = c.arg("x").arg("-y").arg("-aoa").arg(out_arg).arg(archive).output();
+        match o {
+            Err(_) => continue, // not found at this path
+            // exit code 1 = finished with warnings: the files are there
+            Ok(o) if matches!(o.status.code(), Some(0) | Some(1)) => return Some(Ok(())),
+            Ok(o) => return Some(Err(String::from_utf8_lossy(&o.stdout).lines().rev().find(|l| l.contains("rror")).unwrap_or("extraction failed").trim().to_string())),
+        }
+    }
+    None
 }
 
 /// libarchive's `tar`: rar, bz2, xz, zst, cab, other 7z codecs ...
@@ -296,4 +372,73 @@ mod tests {
         assert_eq!(safe_join(d, "a\\b.txt"), Some(PathBuf::from("/dest/a/b.txt")));
         assert_eq!(safe_join(d, "./x/y.vpk"), Some(PathBuf::from("/dest/x/y.vpk")));
     }
+
+    // ------------------------------------------------ RAR (official UnRAR code)
+
+    fn sample_vpk() -> Vec<u8> {
+        (0..30000u32).map(|i| ((i * 7 + i / 13) % 251) as u8).collect()
+    }
+
+    fn sample_text() -> Vec<u8> {
+        b"hello rar\n".repeat(50)
+    }
+
+    /// Write a test archive under a wrong extension on purpose (the type comes from the first bytes).
+    fn fixture(dir: &Path, bytes: &[u8]) -> PathBuf {
+        let p = dir.join("download.bin");
+        fs::write(&p, bytes).unwrap();
+        p
+    }
+
+    #[test]
+    fn rar4_is_read_by_the_builtin_reader() {
+        let d = tmp();
+        let p = fixture(&d, include_bytes!("testdata/rar4.rar"));
+        assert_eq!(sniff(&p), Kind::Rar);
+        extract_rar(&p, &d.join("out")).expect("the built-in RAR reader must handle RAR 4");
+        assert_eq!(fs::read(d.join("out/VERSION")).unwrap(), b"unrar-0.4.0");
+    }
+
+    #[test]
+    fn rar5_and_solid_rar5_are_read_by_the_builtin_reader() {
+        for (label, bytes) in [("rar5", &include_bytes!("testdata/rar5.rar")[..]), ("rar5_solid", &include_bytes!("testdata/rar5_solid.rar")[..])] {
+            let d = tmp();
+            let p = fixture(&d, bytes);
+            extract_rar(&p, &d.join("out")).unwrap_or_else(|er| panic!("{label}: {er}"));
+            assert_eq!(fs::read(d.join("out/pak01_dir.vpk")).unwrap(), sample_vpk(), "{label}");
+            assert_eq!(fs::read(d.join("out/sub/readme.txt")).unwrap(), sample_text(), "{label} (file in a folder)");
+        }
+    }
+
+    #[test]
+    fn extract_uses_the_rar_reader_first() {
+        let d = tmp();
+        let p = fixture(&d, include_bytes!("testdata/rar5.rar"));
+        extract(&p, &d.join("out")).unwrap();
+        assert_eq!(fs::read(d.join("out/pak01_dir.vpk")).unwrap(), sample_vpk());
+    }
+
+    #[test]
+    fn a_damaged_rar_reports_what_was_tried() {
+        let d = tmp();
+        let mut bytes = include_bytes!("testdata/rar5.rar").to_vec();
+        let n = bytes.len();
+        for b in &mut bytes[n - 120..n - 40] {
+            *b ^= 0x5A; // damage the packed data
+        }
+        let p = fixture(&d, &bytes);
+        let err = extract(&p, &d.join("out")).unwrap_err();
+        assert!(err.contains("Could not extract download.bin"), "{err}");
+        assert!(err.contains("built-in reader:") && err.contains("Windows tar:") && err.contains("7-Zip:"), "every attempt is listed: {err}");
+        assert!(err.contains("drag the .vpk"), "tells the user what to do: {err}");
+    }
+
+    #[test]
+    fn a_wrong_file_type_is_not_tried_with_external_programs() {
+        let d = tmp();
+        let p = d.join("notes.txt");
+        fs::write(&p, b"just text").unwrap();
+        assert!(extract(&p, &d.join("out")).unwrap_err().contains("unsupported file type"));
+    }
 }
+

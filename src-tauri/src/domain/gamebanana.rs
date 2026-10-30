@@ -4,7 +4,19 @@ use serde::Serialize;
 use serde_json::Value;
 
 pub const GAME_ID: u64 = 20948;
-const API: &str = "https://gamebanana.com/apiv11";
+pub const API: &str = "https://gamebanana.com/apiv11";
+
+type LogFn = Box<dyn Fn(&str, &str) + Send + Sync>;
+static LOGGER: std::sync::OnceLock<LogFn> = std::sync::OnceLock::new();
+/// The app plugs its log in here (level, message), so requests to GameBanana show up in Settings -> Logs.
+pub fn set_logger(f: impl Fn(&str, &str) + Send + Sync + 'static) {
+    let _ = LOGGER.set(Box::new(f));
+}
+pub(super) fn note(level: &str, msg: &str) {
+    if let Some(f) = LOGGER.get() {
+        f(level, msg);
+    }
+}
 
 #[derive(Serialize, Clone, Default)]
 pub struct GbFile {
@@ -45,6 +57,7 @@ pub struct GbMod {
     pub thumb: Option<String>,
     pub images: Vec<String>,
     pub author: String,
+    pub author_id: u64,
     pub author_avatar: Option<String>,
     pub added: i64,
     pub updated: i64,
@@ -65,11 +78,17 @@ pub struct GbMod {
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Lookup {
     Mod { item: GbMod },
-    List { items: Vec<GbMod> },
+    List {
+        items: Vec<GbMod>,
+        has_more: bool,          // "Load more" makes sense
+        author: Option<String>,  // the author the results are limited to, if any
+        note: Option<String>,    // e.g. "only the newest 600 mods were searched"
+    },
     Direct { url: String },
 }
 
-async fn get(url: &str, q: &[(&str, String)]) -> R<Value> {
+pub(super) async fn get(url: &str, q: &[(&str, String)]) -> R<Value> {
+    note("DEBUG", &format!("GameBanana GET {url} {}", q.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")));
     let c = reqwest::Client::builder().user_agent("yoshirian/0.1").build().map_err(e)?;
     let r = c.get(url).query(q).send().await.map_err(e)?;
     if !r.status().is_success() {
@@ -143,6 +162,7 @@ fn parse(m: &Value) -> GbMod {
         thumb,
         images,
         author: st(&m["_aSubmitter"], "_sName"),
+        author_id: nu(&m["_aSubmitter"], "_idRow"),
         author_avatar: Some(st(&m["_aSubmitter"], "_sAvatarUrl")).filter(|s| !s.is_empty()),
         added: ii(m, "_tsDateAdded"),
         updated: if upd > 0 { upd } else { ii(m, "_tsDateModified") },
@@ -233,7 +253,7 @@ async fn fetch_updates(model: &str, id: u64) -> Vec<GbUpdate> {
     }
 }
 
-fn records(v: &Value) -> Vec<GbMod> {
+pub(super) fn records(v: &Value) -> Vec<GbMod> {
     v["_aRecords"]
         .as_array()
         .map(|a| a.iter().filter(|r| r["_sModelName"].as_str().map_or(true, |s| s == "Mod" || s == "Sound")).map(parse).collect())
@@ -295,20 +315,27 @@ async fn fetch_detail_any(id: u64) -> R<GbMod> {
     }
 }
 
+/// "Latest updates" of the game (mods and sounds mixed).
 pub async fn browse(page: u32) -> R<Vec<GbMod>> {
-    let v = get(&format!("{API}/Game/{GAME_ID}/Subfeed"), &[("_nPage", page.to_string()), ("_sSort", "updated".into())]).await?;
+    subfeed_at(API, page).await
+}
+
+pub(super) async fn subfeed_at(base: &str, page: u32) -> R<Vec<GbMod>> {
+    let v = get(&format!("{base}/Game/{GAME_ID}/Subfeed"), &[("_nPage", page.to_string()), ("_sSort", "updated".into())]).await?;
     Ok(records(&v))
 }
 
 /// Searches mods and sounds.
-pub async fn search(q: &str, page: u32) -> R<Vec<GbMod>> {
+/// Name search in the given models ("Mod" / "Sound"). Returns the items and whether a model filled its page.
+pub(super) async fn search_at(base: &str, q: &str, page: u32, models: &[&str]) -> R<(Vec<GbMod>, bool)> {
     let mut out: Vec<GbMod> = vec![];
     let mut last_err = None;
-    for model in ["Mod", "Sound"] {
+    let mut full = false;
+    for model in models {
         let r = get(
-            &format!("{API}/Util/Search/Results"),
+            &format!("{base}/Util/Search/Results"),
             &[
-                ("_sModelName", model.into()),
+                ("_sModelName", model.to_string()),
                 ("_idGameRow", GAME_ID.to_string()),
                 ("_sSearchString", q.into()),
                 ("_sOrder", "best_match".into()),
@@ -318,12 +345,16 @@ pub async fn search(q: &str, page: u32) -> R<Vec<GbMod>> {
         )
         .await;
         match r {
-            Ok(v) => out.extend(records(&v).into_iter().map(|mut m| {
-                if m.model.is_empty() {
-                    m.model = model.to_string();
-                }
-                m
-            })),
+            Ok(v) => {
+                let got = records(&v);
+                full |= got.len() >= 24;
+                out.extend(got.into_iter().map(|mut m| {
+                    if m.model.is_empty() {
+                        m.model = model.to_string();
+                    }
+                    m
+                }));
+            }
             Err(er) => last_err = Some(er),
         }
     }
@@ -332,7 +363,7 @@ pub async fn search(q: &str, page: u32) -> R<Vec<GbMod>> {
             return Err(er);
         }
     }
-    Ok(out)
+    Ok((out, full))
 }
 
 fn digits(s: &str) -> Option<u64> {
@@ -395,33 +426,27 @@ pub async fn mod_of_file(file: u64) -> Option<u64> {
     get(&format!("{API}/File/{file}"), &[]).await.ok()?["_idModRow"].as_u64()
 }
 
-pub async fn lookup(input: &str) -> R<Lookup> {
+/// A link, a numeric id or a /dl/ link. `None` = the text is a search.
+pub async fn lookup_link(input: &str) -> R<Option<Lookup>> {
     let t = input.trim();
-    if t.is_empty() {
-        return Err("Enter a link, id or name".into());
-    }
     if let Some(id) = after(t, "/dl/") {
         if let Some(mid) = mod_of_file(id).await {
             if let Ok(m) = fetch_detail_any(mid).await {
-                return Ok(Lookup::Mod { item: m });
+                return Ok(Some(Lookup::Mod { item: m }));
             }
         }
-        return Ok(Lookup::Direct { url: format!("https://gamebanana.com/dl/{id}") });
+        return Ok(Some(Lookup::Direct { url: format!("https://gamebanana.com/dl/{id}") }));
     }
     if let Some(id) = after(t, "/sounds/") {
-        return Ok(Lookup::Mod { item: fetch_detail("Sound", id).await? });
+        return Ok(Some(Lookup::Mod { item: fetch_detail("Sound", id).await? }));
     }
     if let Some(id) = after(t, "/mods/") {
-        return Ok(Lookup::Mod { item: fetch_detail("Mod", id).await? });
+        return Ok(Some(Lookup::Mod { item: fetch_detail("Mod", id).await? }));
     }
-    if t.chars().all(|c| c.is_ascii_digit()) {
-        return Ok(Lookup::Mod { item: fetch_detail_any(t.parse::<u64>().map_err(e)?).await? });
+    if !t.is_empty() && t.chars().all(|c| c.is_ascii_digit()) {
+        return Ok(Some(Lookup::Mod { item: fetch_detail_any(t.parse::<u64>().map_err(e)?).await? }));
     }
-    let items = search(t, 1).await?;
-    if items.is_empty() {
-        return Err(format!("Nothing found for \"{t}\""));
-    }
-    Ok(Lookup::List { items })
+    Ok(None)
 }
 
 #[cfg(test)]

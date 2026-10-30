@@ -4,7 +4,9 @@
   "version": "../package.json",
   "identifier": "dev.yoshirian.manager",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../ui",
+    "beforeDevCommand": "npm run sync-assets",
+    "beforeBuildCommand": "npm run sync-assets"
   },
   "app": {
     "withGlobalTauri": true,
@@ -35,11 +37,11 @@
       "nsis"
     ],
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.png",
-      "icons/icon.ico"
+      "../assets/icons/32x32.png",
+      "../assets/icons/128x128.png",
+      "../assets/icons/128x128@2x.png",
+      "../assets/icons/icon.png",
+      "../assets/icons/icon.ico"
     ],
     "windows": {
       "webviewInstallMode": {
