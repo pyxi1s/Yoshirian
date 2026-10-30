@@ -12,7 +12,7 @@
 #shell{flex:1;display:flex;min-height:0}
 aside{width:var(--sidew);flex:none;background:var(--side);border-right:1px solid var(--border);padding:16px 12px 10px;display:flex;flex-direction:column;gap:10px;transition:width .2s}
 .brandbox{display:flex;align-items:center;gap:12px;padding:0 6px 10px}
-.logo{width:36px;height:36px;border-radius:50%;flex:none}
+.logo{width:36px;height:36px;flex:none;object-fit:contain}
 .brand{display:block;font-family:var(--font-head);font-size:22px;font-weight:var(--fw-head);line-height:1.1}
 .brandbox small{color:var(--sub)}
 nav{flex:1;display:grid;gap:3px;align-content:start;overflow:auto}

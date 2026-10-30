@@ -8,16 +8,44 @@ import { render } from "../../core/render.js";
 import { cursorImport } from "../cursor/add.js";
 import { fileNote } from "./view.js";
 
+const keyOf = (m) => `${m.model || "Mod"}:${m.id}`;
+const addUnique = (list, items) => [...new Map([...list, ...items].map((m) => [keyOf(m), m])).values()];
+
+/** "Latest updates" of the game (the feed GameBanana shows first). */
 export async function loadBrowse(more) {
   if (S.browsing) return;
   S.browsing = true;
   if (!more) { S.loading = true; S.gbView = null; render(); }
   try {
-    const page = more ? S.gbPage + 1 : 1, r = await invoke("gb_browse", { page });
-    S.gbPage = page; S.gbList = more ? [...(S.gbList || []), ...r] : r; S.gbTitle = "Latest updates on GameBanana"; S.gbMode = "browse";
+    const page = more ? S.gbPage + 1 : 1;
+    const items = await invoke("gb_browse", { page });
+    S.gbList = more ? addUnique(S.gbList || [], items) : items;
+    S.gbPage = page; S.gbRun = ""; S.gbMore = items.length > 0; S.gbNote = ""; S.gbTitle = "Latest updates on GameBanana";
   } catch (er) { toast(er); if (!more) S.gbList = []; }
   S.loading = false; S.browsing = false; render();
 }
+
+/** The search box: a link / id, `author:"Name"`, or words. `text` searches this instead of the box; `more` = next page. */
+export async function doFetch({ more = false, text } = {}) {
+  if (S.browsing) return;
+  const v = (more ? S.gbRun : text ?? ($("#gin") ? $("#gin").value : S.gq || "")).trim();
+  S.gq = more ? S.gq : v;
+  if (!v) { S.gbList = null; S.gbView = null; S.gbRun = ""; S.gbNote = ""; return render(); } // empty box: back to "Updates for your mods"
+  S.browsing = true;
+  if (!more) { S.loading = true; S.gbView = null; render(); }
+  try {
+    const page = more ? S.gbPage + 1 : 1;
+    const r = await invoke("gb_find", { args: { query: v, page, authorId: S.gAuthorQ === v ? S.gAuthorId : null } });
+    if (r.kind === "mod") S.gbView = r.item;
+    else if (r.kind === "list") {
+      S.gbList = more ? addUnique(S.gbList || [], r.items) : r.items;
+      S.gbPage = page; S.gbRun = v; S.gbMore = r.has_more; S.gbNote = r.note || "";
+      S.gbTitle = r.author ? `Everything by ${r.author}` : `Results for "${v}"`;
+    } else { await invoke("download", { url: r.url, meta: null }); toast("Direct file added to the queue"); S.dlSub = "queue"; }
+  } catch (er) { toast(er); if (!more) { S.gbList = []; S.gbMore = false; S.gbNote = ""; } }
+  S.loading = false; S.browsing = false; render();
+}
+
 export const fileStem = (n) => String(n).replace(/\.[^.]+$/, "");
 export async function queueFiles(m, idxs, update) {
   try {
@@ -43,20 +71,7 @@ export async function openFilePicker(m, update) {
     };
   });
 }
-export async function doFetch() {
-  const v = ($("#gin") || {}).value?.trim();
-  if (!v) { S.gbList = null; S.gbView = null; S.gbMode = ""; return render(); }
-  S.loading = true; render();
-  try {
-    const r = await invoke("gb_lookup", { input: v });
-    S.gbMode = "search";
-    if (r.kind === "mod") S.gbView = r.item;
-    else if (r.kind === "list") { S.gbView = null; S.gbList = r.items; S.gbTitle = `Results for "${v}"`; }
-    else { await invoke("download", { url: r.url, meta: null }); toast("Direct file added to the queue"); S.dlSub = "queue"; }
-  } catch (er) { toast(er); }
-  S.loading = false; render();
-  if ($("#gin")) $("#gin").value = v;
-}
+
 export function openLightbox(i) {
   const imgs = S.gbView.images; let k = i;
   modal(`<img class="big" id="lbimg" src="${esc(imgs[k])}"><div class="btns"><button id="lbp">‹</button><span class="sub" id="lbn"></span><button id="lbn2">›</button><button data-close title="Close">${ic("x")}</button></div>`, (d) => {

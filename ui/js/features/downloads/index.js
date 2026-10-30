@@ -9,7 +9,7 @@ import { preloadSoundsFor } from "../mods/sounds.js";
 import { checkModUpdates } from "../mods/updates.js";
 import { cursorsChanged } from "../cursor/data.js";
 import { downloadsView, patchDlRow } from "./view.js";
-import { loadBrowse, queueFiles, openFilePicker, doFetch, openLightbox, addUploads } from "./browse.js";
+import { loadBrowse, doFetch, queueFiles, openFilePicker, openLightbox, addUploads } from "./browse.js";
 import { drainLinks } from "./links.js";
 
 export { drainLinks, addUploads };
@@ -41,7 +41,10 @@ export default {
     addmod: () => { S.tab = "downloads"; S.dlSub = "upload"; render(); },
     dsub: (d) => { S.dlSub = d.v; render(); },
     fetch: () => doFetch(),
-    gmodel: (d) => { S.gm = d.v; render(); },
+    gmodel: (d) => { S.gm = d.v; render(); }, // All / Mods / Sounds only filters what is shown
+    gblatest: () => loadBrowse(),
+    // click on an author in a detail page = search author:"Name" (everything this person made)
+    gbauthor: (d) => { S.gq = `author:"${d.name}"`; S.gAuthorId = +d.id || null; S.gAuthorQ = S.gq; S.gm = "all"; S.gbFrom = ""; S.dlSub = "download"; doFetch({ text: S.gq }); },
     gbopen: async (d) => { S.gbOpen = {}; S.loading = true; render(); try { S.gbView = await invoke("gb_mod", { id: +d.id, model: d.model || "Mod" }); await preloadSoundsFor(S.gbView); } catch (er) { toast(er); } S.loading = false; render(); },
     gbinst: async (d) => {
       try { await invoke("gb_install", { id: +d.id, model: d.model || "Mod" }); toast("Added to the download queue"); render(); }
@@ -62,8 +65,7 @@ export default {
       if (m.files.length > 1) return openFilePicker(m, upd);
       await queueFiles(m, [0], upd);
     },
-    gbmore: () => loadBrowse(true),
-    gblatest: () => loadBrowse(),
+    gbmore: () => (S.gbRun ? doFetch({ more: true }) : loadBrowse(true)),
     qclear: () => { for (const [k, d] of Object.entries(S.dls)) if (["done", "error", "cancelled"].includes(d.state)) delete S.dls[k]; render(); },
     dlpause: (d) => call("dl_pause", { id: d.id }),
     dlresume: (d) => call("dl_resume", { id: d.id }),

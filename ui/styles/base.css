@@ -1,10 +1,9 @@
 /* Variables, reset, typography, buttons and form controls. */
 :root{
-  --bg:#0b0908;--side:#0e0c0a;--panel:#191512;--card:#15110e;--border:#2b241d;--text:#f1eadc;--sub:#a1978a;
-  --accent:#ead9b0;--accent2:#f6ecd0;--on-accent:#1b140a;--danger:#ff6b6b;--danger-bg:#8c1f1f;--ok:#8bd17c;--warn:#f0b429;
-  --radius:12px;--gap:16px;--sidew:240px;--cardw:218px;--fs:14px;--fw-head:600;--blur:0px;--bgop:.25;
-  --font:"Segoe UI",system-ui,sans-serif;--font-head:"Bahnschrift SemiCondensed","Bahnschrift","Segoe UI",sans-serif;--mono:Consolas,monospace;--thumbr:8/7;--scale:1
-}
+  --bg:#0b141c;--side:#0f1b25;--panel:#14232f;--card:#182a38;--border:#254052;--text:#e8f3f9;--sub:#8fb0c2;
+  --accent:#38bdf8;--accent2:#22d3ee;--on-accent:#062030;--danger:#ff6b6b;--danger-bg:#9b2226;--ok:#4ade80;--warn:#fbbf24;
+  --radius:12;--gap:16;--sidew:240;--cardw:218;--fs:14;--fw-head:600;--blur:0;--bgop:0.25;
+  --font:"Segoe UI",system-ui,sans-serif;--font-head:"Bahnschrift SemiCondensed","Bahnschrift","Segoe UI",sans-serif;--mono:Consolas,monospace;--thumbr:8/7;--scale:1}
 *{box-sizing:border-box}
 html{zoom:var(--scale)}
 body{margin:0;font:var(--fs)/1.5 var(--font);background:var(--bg);color:var(--text);user-select:none;overflow:hidden}

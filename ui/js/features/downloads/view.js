@@ -54,8 +54,10 @@ const updatesCard = (m) => {
   return `<div class="card"><h3>Updates</h3>${rows}</div>`;
 };
 
+/** The author name opens a search for everything this author made. */
+const authorLink = (m) => (m.author ? `<a href="#" data-act="gbauthor" data-id="${m.author_id || 0}" data-name="${esc(m.author)}" title="Show everything by ${esc(m.author)}">${esc(m.author)}</a>` : "—");
+
 export function gbDetail(m) {
-  const cat = [m.super_category, m.category].filter(Boolean).join(" › ") || "—";
   const sound = (m.model || "Mod") === "Sound";
   const copies = S.mods.filter((x) => x.gb_id === m.id && (x.gb_model || "Mod") === (m.model || "Mod"));
   const installed = copies.length > 0;
@@ -68,7 +70,7 @@ export function gbDetail(m) {
   <div class="card" style="margin-top:14px"><div style="display:flex;gap:20px;flex-wrap:wrap">${thumb}
     <div style="flex:1;min-width:260px"><h1>${esc(m.name)} ${ib("openlink", "ext", "Open on GameBanana", `data-url="${esc(m.url)}"`, "ghost")}</h1>
       <div class="stats" style="margin-bottom:10px">${sound ? '<span class="tag">Sound</span>' : ""}${installed ? '<span class="tag on">Installed</span>' : ""}${stat("heart", m.likes)}${stat("downloads", m.downloads)}${stat("eye", m.views)}</div>
-      <div class="kv" style="margin-bottom:12px"><span>Author</span><span>${esc(m.author || "—")}</span><span>Added</span><span>${fmtDate(m.added)}</span><span>Updated</span><span>${fmtDate(m.updated)}</span><span>Type / hero</span><span>${esc(cat)}</span><span>Page</span><span><a href="#" data-act="openlink" data-url="${esc(m.url)}">${esc(m.url)}</a></span></div>${files}
+      <div class="kv" style="margin-bottom:12px"><span>Author</span><span>${authorLink(m)}</span><span>Added</span><span>${fmtDate(m.added)}</span><span>Updated</span><span>${fmtDate(m.updated)}</span><span>Type / hero</span><span>${esc([m.super_category, m.category].filter(Boolean).join(" › ") || "—")}</span><span>Page</span><span><a href="#" data-act="openlink" data-url="${esc(m.url)}">${esc(m.url)}</a></span></div>${files}
       <small class="sub">Installed mods start disabled. Enable them in the Mods tab.</small></div></div></div>
   ${filesCard(m)}
   ${m.audio ? `<div class="card"><h3>Preview</h3>${waveHtml(m.audio)}</div>` : ""}
@@ -144,11 +146,12 @@ export function downloadsInner() {
   else if (S.gbView) body = gbDetail(S.gbView);
   else if (S.gbList) {
     const list = S.gbList.filter((m) => S.gm === "all" || (m.model || "Mod") === S.gm);
-    body = `<div class="head" style="margin-bottom:10px"><h3 style="margin:0">${esc(S.gbTitle)}</h3><span class="grow"></span><div class="tabs">${[["all", "All"], ["Mod", "Mods"], ["Sound", "Sounds"]].map(([k, l]) => `<button data-act="gmodel" data-v="${k}" class="${S.gm === k ? "on" : ""}">${l}</button>`).join("")}</div></div>${list.length ? (ui.vd === "list" ? `<div class="list">${list.map(resultCard).join("")}</div>` : `<div class="grid">${list.map(resultCard).join("")}</div>`) : '<div class="empty">Nothing in this category.</div>'}`;
+    const ft = [["Mod", "Mods"], ["all", "All"], ["Sound", "Sounds"]]; // All in the middle
+    body = `<div class="head" style="margin-bottom:10px"><h3 style="margin:0">${esc(S.gbTitle)}</h3><span class="grow"></span><div class="tabs" style="margin:0">${ft.map(([k, l]) => `<button data-act="gmodel" data-v="${k}" class="${S.gm === k ? "on" : ""}">${l}</button>`).join("")}</div></div>${S.gbNote ? `<div class="sub" style="margin:0 2px 10px">${esc(S.gbNote)}</div>` : ""}${list.length ? (ui.vd === "list" ? `<div class="list">${list.map(resultCard).join("")}</div>` : `<div class="grid">${list.map(resultCard).join("")}</div>`) : '<div class="empty">Nothing found.</div>'}`;
   }
   else body = myUpdatesView();
-  if (S.gbList && S.gbMode === "browse" && !S.loading && !S.gbView) body += `<div class="form" style="margin-top:16px;justify-content:center"><button data-act="gbmore">Load more</button></div>`;
-  return `${subs}<div class="form"><input type="text" id="gin" value="${esc(S.gq || '')}" placeholder="Mod name, GameBanana link, id or /dl/ link" data-enter="fetch" data-in="gq">${ib("fetch", "search", "Search", "", "primary")}${viewSeg("vd")}</div>${body}
+  if (S.gbList && S.gbMore && !S.loading && !S.gbView) body += `<div class="form" style="margin-top:16px;justify-content:center"><button data-act="gbmore">Load more</button></div>`;
+  return `${subs}<div class="form"><input type="text" id="gin" value="${esc(S.gq || '')}" placeholder="Mod name, author:&quot;Name&quot;, GameBanana link, id or /dl/ link" data-enter="fetch" data-in="gq">${ib("fetch", "search", "Search", "", "primary")}${viewSeg("vd")}</div>${body}
 `;
 }
 export const downloadsView = () => pageHead("Downloads", "Search GameBanana (mods and sounds), watch the queue, or install local files") + downloadsInner();

@@ -20,4 +20,4 @@ export const PRESETS = {
 };
 export const HEAD_FONTS = ["Bahnschrift SemiCondensed", "Bahnschrift", "Segoe UI", "Arial Narrow", "Impact", "Georgia", "Consolas"];
 export const FONTS = ["Segoe UI", "Inter", "system-ui", "Arial", "Verdana", "Tahoma", "Trebuchet MS", "Georgia", "Times New Roman", "Comic Sans MS", "Consolas", "Courier New"];
-export const newTheme = (n = "Graphite") => ({ name: n, vars: { ...PRESETS[n] }, font: "Segoe UI", headFont: "Bahnschrift SemiCondensed", mono: "Consolas", fontFile: null, bgImage: null, thumbr: "8/7", anim: true });
+export const newTheme = (n = "Ocean") => ({ name: n, vars: { ...PRESETS[n] }, font: "Segoe UI", headFont: "Bahnschrift SemiCondensed", mono: "Consolas", fontFile: null, bgImage: null, thumbr: "8/7", anim: true });
