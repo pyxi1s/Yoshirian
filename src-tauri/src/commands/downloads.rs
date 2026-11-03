@@ -6,7 +6,7 @@ use crate::domain::{
     install::{inspect, install},
     util::{e, R},
 };
-use crate::state::{log, root, tmp_dir, AppState};
+use crate::state::{cache_dir, log, root, tmp_dir, AppState};
 use serde::{Deserialize, Serialize};
 use std::{fs, sync::Arc};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -52,7 +52,7 @@ pub fn emit(app: &AppHandle, p: &Progress) {
 pub async fn fetch_thumb(app: &AppHandle, id: &str, url: &str) -> R<String> {
     let bytes = reqwest::get(url).await.map_err(e)?.error_for_status().map_err(e)?.bytes().await.map_err(e)?;
     let ext = url.split('?').next().unwrap_or("").rsplit('.').next().filter(|x| x.len() <= 4).unwrap_or("jpg");
-    let dir = app.path().app_cache_dir().map_err(e)?.join("downloads");
+    let dir = cache_dir(app).join("downloads");
     fs::create_dir_all(&dir).map_err(e)?;
     let p = dir.join(format!("{id}_thumb.{ext}"));
     fs::write(&p, &bytes).map_err(e)?;
@@ -116,7 +116,7 @@ pub async fn pipeline(app: &AppHandle, base: &Progress, path: String, meta: &Opt
 async fn run_job(app: AppHandle, base: Progress, url: String, meta: Option<DlMeta>, ctl: Arc<Ctl>) {
     let st = app.state::<AppState>();
     let client = reqwest::Client::new();
-    let dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir()).join("downloads");
+    let dir = cache_dir(&app).join("downloads");
     let mut part = Partial::default();
     let result: R<Option<(usize, &'static str)>> = async {
         loop {

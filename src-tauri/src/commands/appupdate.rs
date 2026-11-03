@@ -7,7 +7,7 @@ use crate::domain::{
     download::{fetch_step, Ctl, Partial, Step},
     util::{e, R},
 };
-use crate::state::{log, persist, AppState, Settings};
+use crate::state::{cache_dir, log, persist, AppState, Settings};
 use serde::Serialize;
 use std::{
     path::{Path, PathBuf},
@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Where the installer is downloaded to (cleared at start-up).
 pub fn update_dir(app: &AppHandle) -> PathBuf {
-    app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir()).join("update")
+    cache_dir(app).join("update")
 }
 
 fn repo_of(s: &Settings) -> String {

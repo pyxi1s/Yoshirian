@@ -12,7 +12,7 @@ mod state;
 
 use commands::{appupdate, cursor, downloads, game, gamebanana, logs, mods, profiles, settings, updates};
 use domain::paths::{detect, valid_root};
-use state::{log, persist, settings_path, tmp_dir, AppState, Settings};
+use state::{app_home, ensure_layout, log, migrate_old_data, persist, settings_path, tmp_dir, webview_dir, AppState, Settings};
 use std::{fs, path::PathBuf};
 use tauri::{Emitter, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -32,6 +32,9 @@ fn main() {
         .setup(|app| {
             let h = app.handle().clone();
             let st = app.state::<AppState>();
+            // older versions kept files in two folders named after the app identifier: merge them into the one data folder first
+            let moved = migrate_old_data(&h);
+            ensure_layout(&app_home(&h));
             // load settings
             if let Ok(sp) = settings_path(&h) {
                 if let Ok(t) = fs::read_to_string(sp) {
@@ -61,6 +64,9 @@ fn main() {
             let _ = fs::remove_dir_all(tmp_dir(&h)); // clear old extractions
             let _ = fs::remove_dir_all(appupdate::update_dir(&h)); // a finished app update left its installer here
             log(&h, "INFO", format!("Yoshirian {} started", h.package_info().version));
+            for line in moved {
+                log(&h, "INFO", format!("Data folder: {line}"));
+            }
 
             #[cfg(any(windows, target_os = "linux"))]
             {
@@ -74,6 +80,9 @@ fn main() {
                 h2.state::<AppState>().pending.lock().unwrap().extend(ev.urls().iter().map(|u| u.to_string()));
                 let _ = h2.emit("deeplink", ());
             });
+            // The window is created here (create = false in tauri.conf.json) so that the web view profile lives in the data folder too
+            let cfg = app.config().app.windows.first().cloned().ok_or("tauri.conf.json has no window")?;
+            tauri::WebviewWindowBuilder::from_config(&h, &cfg)?.data_directory(webview_dir(&h)).build()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

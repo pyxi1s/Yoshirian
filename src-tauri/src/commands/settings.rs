@@ -4,10 +4,10 @@ use crate::domain::{
     paths::{addons, detect, valid_root},
     util::{e, R},
 };
-use crate::state::{log, persist, root, settings_path, AppState, Settings};
+use crate::state::{app_home, log, logs_dir, persist, root, settings_path, AppState, Settings};
 use serde::Serialize;
 use std::{fs, path::PathBuf};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub fn get_settings(s: State<AppState>) -> Settings {
@@ -50,6 +50,7 @@ pub fn set_root(app: AppHandle, s: State<AppState>, path: String) -> R<()> {
 #[derive(Serialize)]
 pub struct Info {
     version: String,
+    home_dir: String,
     default_update_repo: &'static str,
     root: Option<String>,
     addons: Option<String>,
@@ -68,7 +69,8 @@ pub fn get_info(app: AppHandle, s: State<AppState>) -> Info {
         meta_file: r.as_ref().map(|r| addons(r).join(META).to_string_lossy().to_string()),
         root: r.map(|r| r.to_string_lossy().to_string()),
         settings_file: settings_path(&app).map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
-        log_dir: app.path().app_log_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+        log_dir: logs_dir(&app).to_string_lossy().to_string(),
+        home_dir: app_home(&app).to_string_lossy().to_string(),
     }
 }
 
@@ -81,8 +83,8 @@ pub fn open_folder(app: AppHandle, s: State<AppState>, kind: String) -> R<()> {
             a
         }
         "game" => root(&s)?,
-        "logs" => app.path().app_log_dir().map_err(e)?,
-        "data" => app.path().app_config_dir().map_err(e)?,
+        "logs" => logs_dir(&app),
+        "home" => app_home(&app),
         _ => return Err("Unknown folder".into()),
     };
     fs::create_dir_all(&p).map_err(e)?;
