@@ -46,8 +46,8 @@ export function secBody(k) {
     case "debug": {
       const i = S.info || {};
       return `<div class="card"><div class="form"><span>Verbose logging</span>${swi("debug", s.debug)}</div>
-      <div class="kv"><span>Version</span><span>${esc(i.version)}</span><span>Game folder</span><span>${esc(i.root || "—")}</span><span>Addons folder</span><span>${esc(i.addons || "—")}</span><span>Metadata file</span><span>${esc(i.meta_file || "—")}</span><span>Settings file</span><span>${esc(i.settings_file)}</span><span>Log folder</span><span>${esc(i.log_dir)}</span></div></div>
-      <div class="form"><button data-act="dopen" data-k="addons">${ic("folder")} Addons folder</button><button data-act="dopen" data-k="data">${ic("folder")} App data</button><button data-act="dreload">${ic("refresh")} Reload mods</button><button data-act="dcopy">${ic("copy")} Copy diagnostics</button><button class="danger" data-act="dreset">${ic("undo")} Reset appearance</button></div>`;
+      <div class="kv"><span>Version</span><span>${esc(i.version)}</span><span>Game folder</span><span>${esc(i.root || "—")}</span><span>Addons folder</span><span>${esc(i.addons || "—")}</span><span>Metadata file</span><span>${esc(i.meta_file || "—")}</span><span>Program folder</span><span>${esc(i.home_dir || "—")}</span><span>Settings file</span><span>${esc(i.settings_file)}</span><span>Log folder</span><span>${esc(i.log_dir)}</span></div></div>
+      <div class="form"><button data-act="dopen" data-k="addons">${ic("folder")} Addons folder</button><button data-act="dopen" data-k="home">${ic("folder")} Program folder</button><button data-act="dopen" data-k="logs">${ic("folder")} Logs</button><button data-act="dreload">${ic("refresh")} Reload mods</button><button data-act="dcopy">${ic("copy")} Copy diagnostics</button><button class="danger" data-act="dreset">${ic("undo")} Reset appearance</button></div>`;
     }
   }
 }
